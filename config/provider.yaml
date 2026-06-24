@@ -1,0 +1,52 @@
+# =============================================================================
+# Protean Provider — Configuration
+# All values can be overridden with environment variables.
+# Pattern: PROVIDER_<SECTION>_<KEY> in UPPER_SNAKE_CASE
+# Example: PROVIDER_COORDINATOR_ADDRESS=coordinator:9000
+# =============================================================================
+
+provider:
+  name: "lab-provider-01"
+  host: "provider-host.local"
+  ip: ""          # leave empty for auto-detection (Phase 4)
+  min_port: 7400
+  max_port: 7700
+
+coordinator:
+  address: "127.0.0.1:9000"
+  tls:
+    enabled: false           # set true in production; requires certs below
+    ca_cert:     "/etc/stf/certs/ca.crt"
+    client_cert: "/etc/stf/certs/provider.crt"
+    client_key:  "/etc/stf/certs/provider.key"
+  heartbeat_interval:    "10s"
+  reconnect_max_backoff: "2m"
+  call_timeout:          "5s"
+
+adb:
+  host:             "127.0.0.1"
+  port:             5037
+  property_timeout: "5s"
+  poll_interval:    "2s"
+
+db:
+  path: "data/provider.db"   # SQLite file; relative to working directory
+
+stream:
+  type:         "mjpeg"
+  quality:      80
+  max_fps:      15
+  max_restarts: 3
+
+metrics:
+  enabled: true
+  port:    9090
+  path:    "/metrics"
+
+grpc_server:
+  port:    9091
+  enabled: true
+
+logging:
+  level:  "debug"   # use "info" in production
+  format: "text"    # use "json" in production

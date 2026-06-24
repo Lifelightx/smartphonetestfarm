@@ -1,0 +1,110 @@
+syntax = "proto3";
+
+package coordinator;
+
+option go_package = "protean-provider/pkg/protocol/coordinator;coordinatorpb";
+
+import "google/protobuf/timestamp.proto";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CoordinatorService — the central STF coordinator exposes this service.
+// The provider is the client; the coordinator is the server.
+// ─────────────────────────────────────────────────────────────────────────────
+service CoordinatorService {
+  // RegisterProvider announces this provider instance to the coordinator.
+  rpc RegisterProvider(RegisterProviderRequest) returns (RegisterProviderResponse);
+
+  // RegisterDevice tells the coordinator about a newly connected device.
+  rpc RegisterDevice(RegisterDeviceRequest) returns (RegisterDeviceResponse);
+
+  // ReleaseDevice tells the coordinator a device has disconnected.
+  rpc ReleaseDevice(ReleaseDeviceRequest) returns (ReleaseDeviceResponse);
+
+  // Heartbeat is a bi-directional streaming RPC.
+  // Provider sends periodic pings; coordinator may push commands back.
+  rpc Heartbeat(stream HeartbeatPing) returns (stream HeartbeatPong);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RegisterProvider
+// ─────────────────────────────────────────────────────────────────────────────
+message RegisterProviderRequest {
+  string provider_id   = 1;
+  string name          = 2;
+  string host          = 3;
+  string ip            = 4;
+  int32  min_port      = 5;
+  int32  max_port      = 6;
+  string version       = 7;
+}
+
+message RegisterProviderResponse {
+  bool   accepted      = 1;
+  string message       = 2; // human-readable reason if not accepted
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RegisterDevice
+// ─────────────────────────────────────────────────────────────────────────────
+message RegisterDeviceRequest {
+  string provider_id   = 1;
+  string serial        = 2;
+  string model         = 3;
+  string manufacturer  = 4;
+  string android       = 5;
+  int32  sdk           = 6;
+  string abi           = 7;
+  int64  ram_mb        = 8;
+  int64  storage_mb    = 9;
+  int32  display_width = 10;
+  int32  display_height= 11;
+  int32  display_dpi   = 12;
+  int32  battery       = 13;
+  string wifi_ssid     = 14;
+  string ip            = 15;
+  google.protobuf.Timestamp connected_at = 16;
+}
+
+message RegisterDeviceResponse {
+  bool   accepted      = 1;
+  string message       = 2;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ReleaseDevice
+// ─────────────────────────────────────────────────────────────────────────────
+message ReleaseDeviceRequest {
+  string provider_id   = 1;
+  string serial        = 2;
+}
+
+message ReleaseDeviceResponse {
+  bool   ok            = 1;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Heartbeat stream
+// ─────────────────────────────────────────────────────────────────────────────
+message HeartbeatPing {
+  string provider_id   = 1;
+  google.protobuf.Timestamp sent_at = 2;
+  // Snapshot of currently connected device serials.
+  repeated string device_serials = 3;
+}
+
+message HeartbeatPong {
+  google.protobuf.Timestamp received_at = 1;
+  // Optional command the coordinator wants the provider to act on.
+  oneof command {
+    ReconnectCommand reconnect = 2;
+    ShutdownCommand  shutdown  = 3;
+  }
+}
+
+message ReconnectCommand {
+  string reason = 1;
+}
+
+message ShutdownCommand {
+  string reason = 1;
+}

@@ -1,0 +1,33 @@
+# Build artefacts
+bin/
+coverage.out
+
+# Go workspace
+go.work
+go.work.sum
+
+# Environment / secrets
+*.env
+.env.*
+config/provider.local.yaml
+
+# Editor
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+
+node_modules
+
+# ─── scrcpy-server binary ────────────────────────────────────────────────────
+# The embedded scrcpy-server.jar (~716 KB) is obtained via:
+#   make fetch-deps          # downloads from GitHub releases automatically
+#
+# You have two options:
+#   A) Commit the file (simplest for a private repo – uncomment the line below to un-ignore):
+#      git add -f internal/stream/scrcpy-server.jar
+#
+#   B) Keep it out of git and rely on `make fetch-deps` / CI (current default):
+internal/stream/scrcpy-server.jar

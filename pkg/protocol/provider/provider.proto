@@ -1,0 +1,147 @@
+syntax = "proto3";
+
+package provider;
+
+option go_package = "protean-provider/pkg/protocol/provider;providerpb";
+
+import "google/protobuf/timestamp.proto";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ProviderService — the provider exposes this service.
+// The coordinator or user client is the client; the provider is the server.
+// ─────────────────────────────────────────────────────────────────────────────
+service ProviderService {
+  // HealthCheck reports the status of the provider.
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+
+  // GetVersion returns the provider build version info.
+  rpc GetVersion(VersionRequest) returns (VersionResponse);
+
+  // ListDevices returns all devices currently connected to this provider.
+  rpc ListDevices(ListDevicesRequest) returns (ListDevicesResponse);
+
+  // ClaimDevice transitions a device to the claimed state and starts a session.
+  rpc ClaimDevice(ClaimDeviceRequest) returns (ClaimDeviceResponse);
+
+  // ReleaseDevice transitions a claimed device back to the idle state.
+  rpc ReleaseDevice(ReleaseDeviceRequest) returns (ReleaseDeviceResponse);
+
+  // ControlDevice opens a bidirectional channel for touch, key, and command events.
+  rpc ControlDevice(stream ControlRequest) returns (stream ControlResponse);
+}
+
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+  bool healthy = 1;
+  string message = 2;
+}
+
+message VersionRequest {}
+
+message VersionResponse {
+  string version = 1;
+  string build_date = 2;
+}
+
+message ListDevicesRequest {}
+
+message ListDevicesResponse {
+  repeated DeviceProto devices = 1;
+}
+
+message DeviceProto {
+  string serial = 1;
+  string model = 2;
+  string manufacturer = 3;
+  string android_version = 4;
+  int32  sdk_version = 5;
+  string cpu_abi = 6;
+  int64  ram_mb = 7;
+  int64  storage_mb = 8;
+  string status = 9; // idle | claimed | busy | offline
+  int32  port = 10;  // stream port
+  int32  battery_level = 11;
+  string ip_address = 12;
+  google.protobuf.Timestamp connected_at = 13;
+}
+
+message ClaimDeviceRequest {
+  string serial = 1;
+  string claimed_by = 2; // email or user identifier
+}
+
+message ClaimDeviceResponse {
+  bool success = 1;
+  string session_id = 2;
+  int32 port = 3; // stream port allocated
+  string message = 4;
+}
+
+message ReleaseDeviceRequest {
+  string serial = 1;
+}
+
+message ReleaseDeviceResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// ── Control stream events ────────────────────────────────────────────────────
+
+message ControlRequest {
+  string serial = 1;
+  oneof event {
+    TouchEvent touch = 2;
+    KeyEvent key = 3;
+    TextEvent text = 4;
+    RotateEvent rotate = 5;
+    ShellCommandRequest shell = 6;
+  }
+}
+
+message ControlResponse {
+  bool success = 1;
+  string message = 2;
+  oneof response {
+    ShellCommandResponse shell_response = 3;
+  }
+}
+
+message TouchEvent {
+  enum Action {
+    DOWN = 0;
+    MOVE = 1;
+    UP = 2;
+  }
+  Action action = 1;
+  int32 x = 2;
+  int32 y = 3;
+  int32 pointer_id = 4;
+}
+
+message KeyEvent {
+  enum Action {
+    DOWN = 0;
+    UP = 1;
+  }
+  Action action = 1;
+  int32 key_code = 2; // Android KeyEvent key code
+}
+
+message TextEvent {
+  string text = 1;
+}
+
+message RotateEvent {
+  int32 rotation = 1; // 0, 90, 180, 270 degrees
+}
+
+message ShellCommandRequest {
+  string command = 1;
+}
+
+message ShellCommandResponse {
+  string output = 1;
+  int32 exit_code = 2;
+}
