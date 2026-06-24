@@ -254,12 +254,12 @@ function DevicePage({ device, onBack, onRelease }) {
   const streamUrl = `http://localhost:${streamPort}/stream`;
   const controlUrl = `http://localhost:${streamPort}/control`;
 
-  const sendTouchEvent = async (action, normX, normY, pressure = 1.0) => {
+  const sendTouchEvent = async (action, normX, normY, button = 0, buttons = 1, pressure = 1.0, pointerId = 0) => {
     try {
       await fetch(controlUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'touch', action, x: normX, y: normY, pressure }),
+        body: JSON.stringify({ type: 'touch', action, x: normX, y: normY, button, buttons, pressure, pointerId }),
       });
     } catch (err) {
       // Silently ignore control failures to avoid spamming errors during drag
@@ -292,48 +292,95 @@ function DevicePage({ device, onBack, onRelease }) {
     e.preventDefault();
     isDragging.current = true;
     const { x, y } = getVideoNormCoords(e);
-    sendTouchEvent(0, x, y, 1.0);
+    sendTouchEvent(0, x, y, e.button, e.buttons, 1.0, -1);
   };
 
   const handleMouseMove = (e) => {
     if (!isDragging.current) return;
     e.preventDefault();
     const { x, y } = getVideoNormCoords(e);
-    sendTouchEvent(2, x, y, 1.0);
+    sendTouchEvent(2, x, y, e.button, e.buttons, 1.0, -1);
   };
 
   const handleMouseUp = (e) => {
     if (!isDragging.current) return;
     isDragging.current = false;
     const { x, y } = getVideoNormCoords(e);
-    sendTouchEvent(1, x, y, 0);
+    sendTouchEvent(1, x, y, e.button, e.buttons, 0, -1);
+  };
+
+  const handleContextMenu = (e) => {
+    e.preventDefault();
+  };
+
+  const handleKeyDown = async (e) => {
+    // Ignore modifier keys
+    if (e.ctrlKey || e.altKey || e.metaKey) {
+      return;
+    }
+
+    e.preventDefault();
+
+    // Map common control keys to Android keycodes
+    const controlKeyMap = {
+      'Backspace': 67,
+      'Enter': 66,
+      'Tab': 61,
+      'Escape': 111,
+      'ArrowLeft': 21,
+      'ArrowRight': 22,
+      'ArrowUp': 19,
+      'ArrowDown': 20,
+      'Delete': 112,
+    };
+
+    const key = e.key;
+    if (controlKeyMap[key] !== undefined) {
+      await sendControlKey(controlKeyMap[key]);
+    } else if (key.length === 1) {
+      try {
+        await fetch(controlUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'text', text: key }),
+        });
+      } catch (err) {
+        console.error('Failed to send text event:', err);
+      }
+    }
   };
 
   const handleTouchStart = (e) => {
     e.preventDefault();
-    const touch = e.touches[0];
     const rect = videoRef.current.getBoundingClientRect();
-    const x = Math.max(0, Math.min(1, (touch.clientX - rect.left) / rect.width));
-    const y = Math.max(0, Math.min(1, (touch.clientY - rect.top) / rect.height));
-    sendTouchEvent(0, x, y, 1.0);
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const touch = e.changedTouches[i];
+      const x = Math.max(0, Math.min(1, (touch.clientX - rect.left) / rect.width));
+      const y = Math.max(0, Math.min(1, (touch.clientY - rect.top) / rect.height));
+      sendTouchEvent(0, x, y, 0, 0, 1.0, touch.identifier);
+    }
   };
 
   const handleTouchMove = (e) => {
     e.preventDefault();
-    const touch = e.touches[0];
     const rect = videoRef.current.getBoundingClientRect();
-    const x = Math.max(0, Math.min(1, (touch.clientX - rect.left) / rect.width));
-    const y = Math.max(0, Math.min(1, (touch.clientY - rect.top) / rect.height));
-    sendTouchEvent(2, x, y, 1.0);
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const touch = e.changedTouches[i];
+      const x = Math.max(0, Math.min(1, (touch.clientX - rect.left) / rect.width));
+      const y = Math.max(0, Math.min(1, (touch.clientY - rect.top) / rect.height));
+      sendTouchEvent(2, x, y, 0, 0, 1.0, touch.identifier);
+    }
   };
 
   const handleTouchEnd = (e) => {
     e.preventDefault();
-    const touch = e.changedTouches[0];
     const rect = videoRef.current.getBoundingClientRect();
-    const x = Math.max(0, Math.min(1, (touch.clientX - rect.left) / rect.width));
-    const y = Math.max(0, Math.min(1, (touch.clientY - rect.top) / rect.height));
-    sendTouchEvent(1, x, y, 0);
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const touch = e.changedTouches[i];
+      const x = Math.max(0, Math.min(1, (touch.clientX - rect.left) / rect.width));
+      const y = Math.max(0, Math.min(1, (touch.clientY - rect.top) / rect.height));
+      sendTouchEvent(1, x, y, 0, 0, 0, touch.identifier);
+    }
   };
 
   const handleWheel = (e) => {
@@ -611,6 +658,7 @@ function DevicePage({ device, onBack, onRelease }) {
                 playsInline
                 muted
                 controls={false}
+                tabIndex={0}
                 className="phone-video"
                 onLoadedMetadata={handleResize}
                 onResize={handleResize}
@@ -627,6 +675,8 @@ function DevicePage({ device, onBack, onRelease }) {
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
                 onWheel={handleWheel}
+                onKeyDown={handleKeyDown}
+                onContextMenu={handleContextMenu}
                 style={{
                   display: isPlaying ? 'block' : 'none',
                   width: '100%',
@@ -635,6 +685,7 @@ function DevicePage({ device, onBack, onRelease }) {
                   cursor: 'crosshair',
                   touchAction: 'none',
                   userSelect: 'none',
+                  outline: 'none',
                 }}
               />
             )}

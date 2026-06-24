@@ -431,14 +431,18 @@ func (m *Manager) handleControl(w http.ResponseWriter, r *http.Request, serial s
 	}
 
 	var ev struct {
-		Type     string  `json:"type"`
-		Action   int     `json:"action"`   // 0=down,1=up,2=move
-		X        float64 `json:"x"`        // normalized [0,1]
-		Y        float64 `json:"y"`        // normalized [0,1]
-		Pressure float64 `json:"pressure"` // [0,1], default 1
-		Keycode  int     `json:"keycode"`
-		HScroll  float64 `json:"hscroll"`
-		VScroll  float64 `json:"vscroll"`
+		Type      string  `json:"type"`
+		Action    int     `json:"action"`   // 0=down,1=up,2=move
+		X         float64 `json:"x"`        // normalized [0,1]
+		Y         float64 `json:"y"`        // normalized [0,1]
+		Pressure  float64 `json:"pressure"` // [0,1], default 1
+		Keycode   int     `json:"keycode"`
+		HScroll   float64 `json:"hscroll"`
+		VScroll   float64 `json:"vscroll"`
+		Text      string  `json:"text"`
+		Button    int     `json:"button"`
+		Buttons   int     `json:"buttons"`
+		PointerID int64   `json:"pointerId"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&ev); err != nil {
 		http.Error(w, "bad request: "+err.Error(), http.StatusBadRequest)
@@ -465,6 +469,44 @@ func (m *Manager) handleControl(w http.ResponseWriter, r *http.Request, serial s
 		if ev.Pressure == 0 && ev.Action == 0 {
 			ev.Pressure = 1.0
 		}
+		// Map JS mouse buttons to Android MotionEvent button states
+		var actionButton uint32
+		var buttons uint32
+
+		if ev.Buttons > 0 { // Click event has buttons pressed
+			if ev.Action == 0 || ev.Action == 1 { // ACTION_DOWN or ACTION_UP
+				switch ev.Button {
+				case 0:
+					actionButton = 1 // BUTTON_PRIMARY
+				case 1:
+					actionButton = 4 // BUTTON_TERTIARY
+				case 2:
+					actionButton = 2 // BUTTON_SECONDARY
+				}
+			}
+			if ev.Buttons&1 != 0 {
+				buttons |= 1 // BUTTON_PRIMARY
+			}
+			if ev.Buttons&2 != 0 {
+				buttons |= 2 // BUTTON_SECONDARY
+			}
+			if ev.Buttons&4 != 0 {
+				buttons |= 4 // BUTTON_TERTIARY
+			}
+		} else {
+			// For touch events, default to primary mouse if action is down/up to be safe
+			if ev.Action == 0 || ev.Action == 1 {
+				actionButton = 1
+				buttons = 1
+			}
+		}
+
+		pointerID := ev.PointerID
+		if ev.Buttons > 0 && pointerID == 0 {
+			// If not specified by the frontend but buttons are active, treat as mouse (-1)
+			pointerID = -1
+		}
+
 		// SC_CONTROL_MSG_TYPE_INJECT_TOUCH_EVENT = 2
 		// struct: [1 type][1 action][8 pointer_id][4 x][4 y][2 w][2 h][2 pressure][4 actionButton][4 buttons]
 		// Total payload: 1 + 8 + 4 + 4 + 2 + 2 + 2 + 4 + 4 = 31 bytes. Total msg = 32 bytes.
@@ -474,16 +516,16 @@ func (m *Manager) handleControl(w http.ResponseWriter, r *http.Request, serial s
 		msg = make([]byte, 32)
 		msg[0] = 2                                                    // type: INJECT_TOUCH_EVENT
 		msg[1] = byte(ev.Action)                                      // action
-		binary.BigEndian.PutUint64(msg[2:10], 0xFFFFFFFFFFFFFFFF)     // pointer_id = FINGER
+		binary.BigEndian.PutUint64(msg[2:10], uint64(pointerID))      // pointer_id
 		binary.BigEndian.PutUint32(msg[10:14], uint32(absX))          // x
 		binary.BigEndian.PutUint32(msg[14:18], uint32(absY))          // y
 		binary.BigEndian.PutUint16(msg[18:20], vw)                    // screen width
 		binary.BigEndian.PutUint16(msg[20:22], vh)                    // screen height
 		binary.BigEndian.PutUint16(msg[22:24], pressure)              // pressure
-		binary.BigEndian.PutUint32(msg[24:28], 0)                     // actionButton = 0
-		binary.BigEndian.PutUint32(msg[28:32], 1)                     // buttons = 1 (BUTTON_PRIMARY)
+		binary.BigEndian.PutUint32(msg[24:28], actionButton)          // actionButton
+		binary.BigEndian.PutUint32(msg[28:32], buttons)               // buttons
 	case "scroll":
-		// SC_CONTROL_MSG_TYPE_INJECT_SCROLL_EVENT = 4
+		// SC_CONTROL_MSG_TYPE_INJECT_SCROLL_EVENT = 3
 		// struct: [1 type][4 x][4 y][2 w][2 h][2 hscroll][2 vscroll][4 buttons]
 		// Total payload: 4 + 4 + 2 + 2 + 2 + 2 + 4 = 20 bytes. Total msg = 21 bytes.
 		absX := int32(ev.X * float64(vw))
@@ -509,7 +551,7 @@ func (m *Manager) handleControl(w http.ResponseWriter, r *http.Request, serial s
 		}
 
 		msg = make([]byte, 21)
-		msg[0] = 4
+		msg[0] = 3
 		binary.BigEndian.PutUint32(msg[1:5], uint32(absX))
 		binary.BigEndian.PutUint32(msg[5:9], uint32(absY))
 		binary.BigEndian.PutUint16(msg[9:11], vw)
@@ -517,6 +559,14 @@ func (m *Manager) handleControl(w http.ResponseWriter, r *http.Request, serial s
 		binary.BigEndian.PutUint16(msg[13:15], uint16(hscroll))
 		binary.BigEndian.PutUint16(msg[15:17], uint16(vscroll))
 		binary.BigEndian.PutUint32(msg[17:21], 0)                     // buttons = 0
+	case "text":
+		// SC_CONTROL_MSG_TYPE_INJECT_TEXT = 1
+		// struct: [1 type][4 length][length string]
+		textBytes := []byte(ev.Text)
+		msg = make([]byte, 1+4+len(textBytes))
+		msg[0] = 1
+		binary.BigEndian.PutUint32(msg[1:5], uint32(len(textBytes)))
+		copy(msg[5:], textBytes)
 	case "key":
 		// SC_CONTROL_MSG_TYPE_INJECT_KEYCODE = 0
 		// struct: [1 type][1 action][4 keycode][4 repeat][4 metastate]
