@@ -69,7 +69,7 @@ func frameToAVCC(annexB []byte) []byte {
 		}
 		switch nalType(nal[0]) {
 		case nalSPS, nalPPS, nalSEI, nalAUD:
-			// Skip — SPS/PPS live in avcC; SEI/AUD not needed in mdat
+			// Skip SPS, PPS, SEI, AUD not needed in mdat
 		default:
 			out = append(out, avccWrap(nal)...)
 		}

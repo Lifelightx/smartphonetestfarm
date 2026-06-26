@@ -8,7 +8,7 @@
 provider:
   name: "lab-provider-01"
   host: "provider-host.local"
-  ip: ""          # leave empty for auto-detection (Phase 4)
+  ip: "127.0.0.1"          # leave empty for auto-detection (Phase 4)
   min_port: 7400
   max_port: 7700
 

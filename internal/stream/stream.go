@@ -18,6 +18,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gorilla/websocket"
+
 	"protean-provider/internal/config"
 )
 
@@ -49,13 +51,7 @@ type streamState struct {
 	serverCmd *exec.Cmd      // adb shell running scrcpy-server on-device
 	cancel    context.CancelFunc
 	done      chan struct{}
-
-	// initSegment is set once after SPS/PPS are extracted from the first keyframe.
-	// New HTTP clients receive this before any media segments.
-	initOnce    sync.Once
-	initSegment []byte
-	gopCache    [][]byte // Cache starting with a keyframe
-
+	gopCache  [][]byte // Cache starting with a keyframe
 	// controlConn is the underlying TCP conn to the scrcpy-server.
 	// It is used to write control messages (touch, key events) back to the device.
 	controlMu   sync.Mutex
@@ -70,7 +66,7 @@ type streamState struct {
 	clients   map[chan<- []byte]struct{}
 }
 
-func (s *streamState) addClientAndGetCache(ch chan<- []byte) ([]byte, [][]byte) {
+func (s *streamState) addClientAndGetCache(ch chan<- []byte) [][]byte {
 	s.clientsMu.Lock()
 	defer s.clientsMu.Unlock()
 	s.clients[ch] = struct{}{}
@@ -80,7 +76,7 @@ func (s *streamState) addClientAndGetCache(ch chan<- []byte) ([]byte, [][]byte) 
 		cachedGOP = make([][]byte, len(s.gopCache))
 		copy(cachedGOP, s.gopCache)
 	}
-	return s.initSegment, cachedGOP
+	return cachedGOP
 }
 
 func (s *streamState) removeClient(ch chan<- []byte) {
@@ -207,6 +203,9 @@ func (m *Manager) StartCapture(ctx context.Context, serial string, port int) err
 	mux.HandleFunc("/control", func(w http.ResponseWriter, r *http.Request) {
 		m.handleControl(w, r, serial)
 	})
+	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+		m.handleWS(w, r, serial)
+	})
 	httpServer := &http.Server{Addr: fmt.Sprintf(":%d", port), Handler: mux}
 
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
@@ -300,17 +299,9 @@ func (m *Manager) StartCapture(ctx context.Context, serial string, port int) err
 					time.Sleep(200 * time.Millisecond)
 					continue
 				}
-				_ = c.SetReadDeadline(time.Now().Add(300 * time.Millisecond))
-				probe := make([]byte, 1)
-				_, rerr := c.Read(probe)
-				_ = c.SetReadDeadline(time.Time{})
-				if rerr == nil || (func() bool { ne, ok := rerr.(net.Error); return ok && ne.Timeout() }()) {
-					ctrlConn = c
-					slog.Info("stream: control socket connected", "serial", serial)
-					break
-				}
-				c.Close()
-				time.Sleep(200 * time.Millisecond)
+				ctrlConn = c
+				slog.Info("stream: control socket connected", "serial", serial)
+				break
 			}
 			if ctrlConn != nil {
 				s.controlMu.Lock()
@@ -332,7 +323,7 @@ func (m *Manager) StartCapture(ctx context.Context, serial string, port int) err
 	return nil
 }
 
-// handleStreamClient serves one HTTP client with fMP4 chunks.
+// handleStreamClient serves one HTTP client with raw H.264 stream.
 func (m *Manager) handleStreamClient(w http.ResponseWriter, r *http.Request, serial string) {
 	if r.Method == http.MethodOptions {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -353,7 +344,7 @@ func (m *Manager) handleStreamClient(w http.ResponseWriter, r *http.Request, ser
 	slog.Info("stream: client connected to stream", "serial", serial, "remote_addr", r.RemoteAddr)
 	defer slog.Info("stream: client disconnected from stream", "serial", serial, "remote_addr", r.RemoteAddr)
 
-	w.Header().Set("Content-Type", "video/mp4")
+	w.Header().Set("Content-Type", "video/h264")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Transfer-Encoding", "chunked")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -365,26 +356,15 @@ func (m *Manager) handleStreamClient(w http.ResponseWriter, r *http.Request, ser
 	}
 
 	ch := make(chan []byte, 60)
-	init, cachedGOP := s.addClientAndGetCache(ch)
+	cachedGOP := s.addClientAndGetCache(ch)
 	defer s.removeClient(ch)
 
-	// Send init segment first so the browser can initialise the MSE SourceBuffer.
-	if len(init) > 0 {
-		if _, err := w.Write(init); err != nil {
-			return
-		}
-		flusher.Flush()
-	}
-
-	// Send cached GOP frames so client has immediate keyframe for playback
 	for _, chunk := range cachedGOP {
 		if _, err := w.Write(chunk); err != nil {
 			return
 		}
 	}
-	if len(cachedGOP) > 0 {
-		flusher.Flush()
-	}
+	flusher.Flush()
 
 	for {
 		select {
@@ -403,7 +383,6 @@ func (m *Manager) handleStreamClient(w http.ResponseWriter, r *http.Request, ser
 		}
 	}
 }
-
 // handleControl handles POST /control and sends a scrcpy control message to the device.
 // The request body is JSON:
 //   {"type":"touch","action":0,"x":0.5,"y":0.3,"pressure":1.0}   // x,y are normalized [0,1]
@@ -602,16 +581,12 @@ func (m *Manager) handleControl(w http.ResponseWriter, r *http.Request, serial s
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// readAndMux reads framed H.264 from the scrcpy-server socket, builds fMP4
-// segments, and broadcasts them to all connected HTTP clients.
+// readAndMux reads framed H.264 from the scrcpy-server socket, builds GOP cache, and broadcasts to clients.
 func (m *Manager) readAndMux(ctx context.Context, s *streamState, r io.Reader, maxFPS int) {
 	var (
-		seqNum         uint32
-		baseDecodeTime uint64
-		sps, pps       []byte
-		frameDuration  = uint64(mp4Timescale / maxFPS)
+		seqNum   uint32
+		sps, pps []byte
 	)
-
 	for {
 		select {
 		case <-ctx.Done():
@@ -643,39 +618,20 @@ func (m *Manager) readAndMux(ctx context.Context, s *streamState, r io.Reader, m
 		}
 
 		// Extract SPS/PPS from the first keyframe (or whenever they appear)
-		if newSPS, newPPS := extractSPSPPS(frameData); newSPS != nil && newPPS != nil {
-			if sps == nil || pps == nil {
-				sps, pps = newSPS, newPPS
-				trackWidth, trackHeight := parseSPS(sps)
-				slog.Info("track metadata", "width", trackWidth, "height", trackHeight)
-				// Store video dimensions so /control can scale coordinates
-				s.controlMu.Lock()
-				s.videoWidth = trackWidth
-				s.videoHeight = trackHeight
-				s.controlMu.Unlock()
-				init := BuildInitSegment(sps, pps, maxFPS)
-				// Store init segment for new clients connecting later
-				s.clientsMu.Lock()
-				s.initSegment = init
-				for ch := range s.clients {
-					select {
-					case ch <- init:
-					default:
-					}
-				}
-				s.clientsMu.Unlock()
-				slog.Info("stream: init segment built and sent", "serial", s.serial,
-					"sps_len", len(sps), "pps_len", len(pps))
-			}
+		newSPS, newPPS := extractSPSPPS(frameData)
+		if newSPS != nil && newPPS != nil {
+			sps, pps = newSPS, newPPS
+			trackWidth, trackHeight := parseSPS(sps)
+			slog.Info("track metadata", "width", trackWidth, "height", trackHeight)
+			// Store video dimensions so /control can scale coordinates
+			s.controlMu.Lock()
+			s.videoWidth = trackWidth
+			s.videoHeight = trackHeight
+			s.controlMu.Unlock()
 		}
 
 		// Can't send media segments before we have SPS/PPS
 		if sps == nil || pps == nil {
-			continue
-		}
-
-		avcc := frameToAVCC(frameData)
-		if len(avcc) == 0 {
 			continue
 		}
 
@@ -688,33 +644,40 @@ func (m *Manager) readAndMux(ctx context.Context, s *streamState, r io.Reader, m
 			slog.Info("stream: active streaming frames broadcasted", "serial", s.serial, "frame_count", seqNum)
 		}
 
-		seg := BuildMediaSegment(seqNum, baseDecodeTime, []MediaSample{
-			{Data: avcc, IsKey: isKey, Duration: uint32(frameDuration)},
-		})
+		// Prepend SPS/PPS to the keyframe if they are missing
+		if isKey && sps != nil && pps != nil && (newSPS == nil || newPPS == nil) {
+			prepended := make([]byte, 0, 4+len(sps)+4+len(pps)+len(frameData))
+			prepended = append(prepended, 0, 0, 0, 1)
+			prepended = append(prepended, sps...)
+			prepended = append(prepended, 0, 0, 0, 1)
+			prepended = append(prepended, pps...)
+			prepended = append(prepended, frameData...)
+			frameData = prepended
+		}
 
 		s.clientsMu.Lock()
 		if isKey {
-			s.gopCache = [][]byte{seg}
+			s.gopCache = [][]byte{frameData}
 		} else if len(s.gopCache) > 0 {
-			s.gopCache = append(s.gopCache, seg)
+			s.gopCache = append(s.gopCache, frameData)
 		}
 		for ch := range s.clients {
 			select {
-			case ch <- seg:
+			case ch <- frameData:
 			default:
 			}
 		}
 		s.clientsMu.Unlock()
-
-		baseDecodeTime += frameDuration
 	}
 }
-
-// isKeyFrame returns true if the Annex-B buffer contains an IDR NAL unit.
+// isKeyFrame returns true if the Annex-B buffer contains an IDR, SPS, or PPS NAL unit.
 func isKeyFrame(annexB []byte) bool {
 	for _, nal := range annexBSplit(annexB) {
-		if len(nal) > 0 && nalType(nal[0]) == nalIDR {
-			return true
+		if len(nal) > 0 {
+			t := nalType(nal[0])
+			if t == nalIDR || t == nalSPS || t == nalPPS {
+				return true
+			}
 		}
 	}
 	return false
@@ -745,8 +708,6 @@ func (m *Manager) IsCapturing(serial string) bool {
 	_, ok := m.streams[serial]
 	return ok
 }
-
-// ── ADB helpers ───────────────────────────────────────────────────────────────
 
 func adbForward(ctx context.Context, serial string, local int, remote string) error {
 	out, err := exec.CommandContext(ctx, "adb", "-s", serial,
@@ -836,4 +797,221 @@ func pushScrcpyServer(ctx context.Context, serial string) error {
 	_ = exec.CommandContext(ctx, "adb", "-s", serial, "shell", "chmod", "644", scrcpyServerJarOnDevice).Run()
 	return nil
 }
+
+var upgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool {
+		return true // Allow all origins for enterprise-grade provider portal API
+	},
+}
+
+func (m *Manager) handleWS(w http.ResponseWriter, r *http.Request, serial string) {
+	m.mu.Lock()
+	s, ok := m.streams[serial]
+	m.mu.Unlock()
+	if !ok {
+		http.Error(w, "no active stream", http.StatusNotFound)
+		return
+	}
+
+	ws, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		slog.Error("stream: websocket upgrade failed", "serial", serial, "err", err)
+		return
+	}
+	defer ws.Close()
+
+	slog.Info("stream: websocket client connected", "serial", serial, "remote_addr", r.RemoteAddr)
+	defer slog.Info("stream: websocket client disconnected", "serial", serial, "remote_addr", r.RemoteAddr)
+	ch := make(chan []byte, 120)
+	cachedGOP := s.addClientAndGetCache(ch)
+	defer s.removeClient(ch)
+
+	for _, chunk := range cachedGOP {
+		if err := ws.WriteMessage(websocket.BinaryMessage, chunk); err != nil {
+			return
+		}
+	}
+	// Channel loop to send video chunks as binary messages
+	wsWriteDone := make(chan struct{})
+	go func() {
+		defer close(wsWriteDone)
+		for {
+			select {
+			case chunk, more := <-ch:
+				if !more {
+					return
+				}
+				// Set a short write deadline so a slow browser can't block the
+				// video goroutine and starve control-event processing.
+				_ = ws.SetWriteDeadline(time.Now().Add(2 * time.Second))
+				if err := ws.WriteMessage(websocket.BinaryMessage, chunk); err != nil {
+					return
+				}
+				_ = ws.SetWriteDeadline(time.Time{}) // clear deadline
+			case <-s.done:
+				return
+			}
+		}
+	}()
+
+	// Dedicated goroutine for writing control events to the scrcpy socket.
+	// Using a buffered channel ensures ws.ReadMessage() never blocks waiting
+	// for conn.Write(), which is the primary cause of touch latency.
+	controlCh := make(chan []byte, 64)
+	go func() {
+		for msg := range controlCh {
+			s.controlMu.Lock()
+			_, werr := s.controlConn.Write(msg)
+			s.controlMu.Unlock()
+			if werr != nil {
+				slog.Warn("stream: control write failed", "serial", serial, "err", werr)
+			}
+		}
+	}()
+	defer close(controlCh)
+
+	// Incoming loop for control messages
+	for {
+		messageType, payload, err := ws.ReadMessage()
+		if err != nil {
+			break
+		}
+		if messageType != websocket.TextMessage {
+			continue
+		}
+
+		var ev struct {
+			Type      string  `json:"type"`
+			Action    int     `json:"action"`
+			X         float64 `json:"x"`
+			Y         float64 `json:"y"`
+			Pressure  float64 `json:"pressure"`
+			Keycode   int     `json:"keycode"`
+			HScroll   float64 `json:"hscroll"`
+			VScroll   float64 `json:"vscroll"`
+			Text      string  `json:"text"`
+			Button    int     `json:"button"`
+			Buttons   int     `json:"buttons"`
+			PointerID int64   `json:"pointerId"`
+		}
+		if err := json.Unmarshal(payload, &ev); err != nil {
+			slog.Warn("stream: ws bad json payload", "serial", serial, "err", err)
+			continue
+		}
+
+		s.controlMu.Lock()
+		conn := s.controlConn
+		vw := s.videoWidth
+		vh := s.videoHeight
+		s.controlMu.Unlock()
+
+		if conn == nil {
+			continue
+		}
+		if vw == 0 || vh == 0 {
+			vw, vh = 1080, 1920
+		}
+
+		var msg []byte
+		switch ev.Type {
+		case "touch":
+			if ev.Pressure == 0 && ev.Action == 0 {
+				ev.Pressure = 1.0
+			}
+			var actionButton uint32
+			var buttons uint32
+			if ev.Buttons > 0 {
+				if ev.Action == 0 || ev.Action == 1 {
+					switch ev.Button {
+					case 0: actionButton = 1
+					case 1: actionButton = 4
+					case 2: actionButton = 2
+					}
+				}
+				if ev.Buttons&1 != 0 { buttons |= 1 }
+				if ev.Buttons&2 != 0 { buttons |= 2 }
+				if ev.Buttons&4 != 0 { buttons |= 4 }
+			} else {
+				if ev.Action == 0 || ev.Action == 1 {
+					actionButton = 1
+					buttons = 1
+				}
+			}
+
+			pointerID := ev.PointerID
+			if ev.Buttons > 0 && pointerID == 0 {
+				pointerID = -1
+			}
+
+			absX := int32(ev.X * float64(vw))
+			absY := int32(ev.Y * float64(vh))
+			pressure := uint16(ev.Pressure * 0xFFFF)
+			msg = make([]byte, 32)
+			msg[0] = 2
+			msg[1] = byte(ev.Action)
+			binary.BigEndian.PutUint64(msg[2:10], uint64(pointerID))
+			binary.BigEndian.PutUint32(msg[10:14], uint32(absX))
+			binary.BigEndian.PutUint32(msg[14:18], uint32(absY))
+			binary.BigEndian.PutUint16(msg[18:20], vw)
+			binary.BigEndian.PutUint16(msg[20:22], vh)
+			binary.BigEndian.PutUint16(msg[22:24], pressure)
+			binary.BigEndian.PutUint32(msg[24:28], actionButton)
+			binary.BigEndian.PutUint32(msg[28:32], buttons)
+
+		case "scroll":
+			absX := int32(ev.X * float64(vw))
+			absY := int32(ev.Y * float64(vh))
+			hVal := ev.HScroll
+			if hVal > 1 { hVal = 1 } else if hVal < -1 { hVal = -1 }
+			vVal := ev.VScroll
+			if vVal > 1 { vVal = 1 } else if vVal < -1 { vVal = -1 }
+
+			var hscroll int16
+			if hVal == 1.0 { hscroll = 0x7fff } else { hscroll = int16(hVal * 32768.0) }
+			var vscroll int16
+			if vVal == 1.0 { vscroll = 0x7fff } else { vscroll = int16(vVal * 32768.0) }
+
+			msg = make([]byte, 21)
+			msg[0] = 3
+			binary.BigEndian.PutUint32(msg[1:5], uint32(absX))
+			binary.BigEndian.PutUint32(msg[5:9], uint32(absY))
+			binary.BigEndian.PutUint16(msg[9:11], vw)
+			binary.BigEndian.PutUint16(msg[11:13], vh)
+			binary.BigEndian.PutUint16(msg[13:15], uint16(hscroll))
+			binary.BigEndian.PutUint16(msg[15:17], uint16(vscroll))
+			binary.BigEndian.PutUint32(msg[17:21], 0)
+
+		case "text":
+			textBytes := []byte(ev.Text)
+			msg = make([]byte, 1+4+len(textBytes))
+			msg[0] = 1
+			binary.BigEndian.PutUint32(msg[1:5], uint32(len(textBytes)))
+			copy(msg[5:], textBytes)
+
+		case "key":
+			msg = make([]byte, 14)
+			msg[0] = 0
+			msg[1] = 0
+			binary.BigEndian.PutUint32(msg[2:6], uint32(ev.Keycode))
+			binary.BigEndian.PutUint32(msg[6:10], 0)
+			binary.BigEndian.PutUint32(msg[10:14], 0)
+
+			s.controlMu.Lock()
+			_, _ = conn.Write(msg)
+			s.controlMu.Unlock()
+
+			msg[1] = 1 // key-up
+		}
+
+		if len(msg) > 0 {
+			// Non-blocking send to control goroutine — never stalls ReadMessage
+			select {
+			case controlCh <- msg:
+			default:
+				slog.Warn("stream: control channel full, dropping event", "serial", serial)
+			}
+		}
+	}
+}
+
 
