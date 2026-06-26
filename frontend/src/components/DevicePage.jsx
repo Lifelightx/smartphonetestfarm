@@ -162,7 +162,7 @@ function DevicePage({ device, onBack, onRelease }) {
     let ws = null;
 
     if (!window.VideoDecoder) {
-      setErrorMsg('WebCodecs is not supported in this browser.');
+      setErrorMsg('WebCodecs is not supported in this browser. Ensure you are using a secure context (HTTPS) or accessing via localhost/127.0.0.1.');
       return;
     }
     let savedSPS = null;
