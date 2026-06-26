@@ -152,6 +152,7 @@ func (m *Manager) StartCapture(ctx context.Context, serial string, port int) err
 		"send_stream_meta=false",
 		"send_frame_meta=true",
 		"video_codec=h264",
+		"video_codec_options=i-frame-interval=1",
 		"max_size=1080",
 		"max_fps="+strconv.Itoa(maxFPS),
 		"tunnel_forward=true",
