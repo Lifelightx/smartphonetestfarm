@@ -219,46 +219,42 @@ html, body {
 /* ── Device Grid & Cards ── */
 .device-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 20px;
 }
-.device-card {
+.device-card-minimal {
+  position: relative;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  overflow: hidden;
+  border-radius: 12px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
-  transition: border-color 0.2s, box-shadow 0.2s;
-  cursor: pointer;
-}
-.device-card:hover {
-  border-color: var(--border-active);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-.card-header {
-  display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border);
+  justify-content: space-between;
+  text-align: center;
+  min-height: 220px;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.device-icon {
-  font-size: 16px;
-  color: var(--text-muted);
+.device-card-minimal:hover {
+  border-color: var(--border-active);
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
 }
-.card-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text);
+.card-top-bar {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
 }
 .card-serial {
   font-size: 11px;
   color: var(--text-muted);
   font-family: monospace;
 }
-.status-pill {
-  margin-left: auto;
+.status-pill-minimal {
   padding: 2px 8px;
   border-radius: 20px;
   font-size: 10px;
@@ -266,65 +262,63 @@ html, body {
   text-transform: capitalize;
   border: 1px solid transparent;
 }
-.status-idle    { background: rgba(31, 136, 61, 0.1); color: var(--green); border-color: rgba(31, 136, 61, 0.2); }
-.status-claimed { background: rgba(210, 153, 34, 0.1); color: var(--yellow); border-color: rgba(210, 153, 34, 0.2); }
-.status-busy    { background: rgba(218, 54, 51, 0.1); color: var(--red); border-color: rgba(218, 54, 51, 0.2); }
-.status-offline { background: rgba(139, 148, 158, 0.1); color: var(--text-muted); border-color: rgba(139, 148, 158, 0.2); }
+.status-pill-minimal.status-idle    { background: rgba(35, 134, 54, 0.1); color: #3fb950; border-color: rgba(46, 160, 67, 0.2); }
+.status-pill-minimal.status-claimed { background: rgba(187, 128, 9, 0.1); color: #d29922; border-color: rgba(210, 153, 34, 0.2); }
+.status-pill-minimal.status-busy    { background: rgba(248, 81, 73, 0.1); color: #f85149; border-color: rgba(248, 81, 73, 0.2); }
 
-.card-body {
-  padding: 12px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+.device-visual {
   flex: 1;
-}
-.info-row {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-.info-chip {
-  font-size: 11px;
-  color: var(--text-muted);
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 2px 6px;
-}
-.info-chip span {
-  color: var(--text);
-  font-weight: 500;
-}
-.battery-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-}
-.battery-bar {
-  flex: 1;
-  height: 6px;
-  background: var(--border);
-  border-radius: 3px;
-  overflow: hidden;
-}
-.battery-fill {
-  height: 100%;
-  background: var(--green);
-  border-radius: 3px;
-}
-.battery-fill.low { background: var(--red); }
-.battery-fill.mid { background: var(--yellow); }
-.battery-label {
-  font-size: 11px;
+  justify-content: center;
+  margin: 12px 0;
   color: var(--text-muted);
+  transition: color 0.2s ease, transform 0.2s ease;
 }
-.card-footer {
-  padding: 10px 16px;
-  border-top: 1px solid var(--border);
-  background: var(--bg);
-  display: flex;
-  gap: 8px;
-  justify-content: flex-end;
+.device-card-minimal:hover .device-visual {
+  color: var(--text);
+  transform: scale(1.05);
+}
+.device-svg-icon {
+  stroke: var(--text-muted);
+  transition: stroke 0.2s ease;
+}
+.device-card-minimal:hover .device-svg-icon {
+  stroke: var(--accent);
+}
+.device-info {
+  width: 100%;
+  margin-top: 8px;
+}
+.device-model {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.btn-card-release {
+  margin-top: 12px;
+  width: 100%;
+  padding: 6px 12px;
+  background: rgba(248, 81, 73, 0.1);
+  border: 1px solid rgba(248, 81, 73, 0.2);
+  color: #f85149;
+  border-radius: var(--radius);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.btn-card-release:hover {
+  background: #f85149;
+  color: #ffffff;
+  border-color: #f85149;
+}
+.header-logo-svg {
+  color: var(--accent);
+  display: block;
 }
 
 /* ── Device Detail Page (Fit Screen Layout) ── */

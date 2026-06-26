@@ -1,5 +1,12 @@
 import React from 'react';
 
+const PhoneIcon = () => (
+  <svg className="device-svg-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="5" y="2" width="14" height="20" rx="2.5" ry="2.5" />
+    <path d="M12 18h.01" strokeWidth="2" strokeLinecap="round" />
+  </svg>
+);
+
 function DeviceCard({ device, onClaim, onViewStream, onRelease }) {
   const getStatusClass = (status) => {
     switch (status?.toLowerCase()) {
@@ -21,59 +28,35 @@ function DeviceCard({ device, onClaim, onViewStream, onRelease }) {
 
   return (
     <div
-      className={`device-card ${device.status?.toLowerCase()}`}
+      className={`device-card-minimal ${device.status?.toLowerCase()}`}
       onClick={handleCardClick}
     >
-      <div className="card-header">
-        <div className="device-icon">🤖</div>
-        <div>
-          <div className="card-title">{device.manufacturer} {device.model}</div>
-          <div className="card-serial">{device.serial}</div>
-        </div>
-        <span className={`status-pill ${getStatusClass(device.status)}`}>
+      <div className="card-top-bar">
+        <span className="card-serial">{device.serial}</span>
+        <span className={`status-pill-minimal ${getStatusClass(device.status)}`}>
           {device.status}
         </span>
       </div>
-      <div className="card-body">
-        <div className="info-row">
-          <div className="info-chip">OS: <span>Android {device.android} (SDK {device.sdk})</span></div>
-          <div className="info-chip">ABI: <span>{device.abi}</span></div>
-          <div className="info-chip">Screen: <span>{device.display}</span></div>
-        </div>
-        <div className="battery-row">
-          <span className="info-chip">Battery</span>
-          <div className="battery-bar">
-            <div
-              className={`battery-fill ${device.battery <= 20 ? 'low' : device.battery <= 50 ? 'mid' : ''}`}
-              style={{ width: `${device.battery}%` }}
-            ></div>
-          </div>
-          <span className="battery-label">{device.battery}%</span>
-        </div>
-        {device.wifi_ssid && (
-          <div className="info-row">
-            <div className="info-chip">WiFi: <span>{device.wifi_ssid}</span></div>
-            <div className="info-chip">IP: <span>{device.ip}</span></div>
-          </div>
-        )}
+
+      <div className="device-visual">
+        <PhoneIcon />
       </div>
-      <div className="card-footer" onClick={(e) => e.stopPropagation()}>
-        {device.status?.toLowerCase() === 'idle' && (
-          <button className="btn btn-primary btn-sm" onClick={() => onClaim(device)}>
-            Claim & Control
-          </button>
-        )}
-        {(device.status?.toLowerCase() === 'claimed' || device.status?.toLowerCase() === 'busy') && (
-          <>
-            <button className="btn btn-ghost btn-sm" onClick={() => onViewStream(device.serial)}>
-              View Stream
-            </button>
-            <button className="btn btn-danger btn-sm" onClick={() => onRelease(device.serial)}>
-              Release
-            </button>
-          </>
-        )}
+
+      <div className="device-info">
+        <h3 className="device-model">{device.manufacturer} {device.model}</h3>
       </div>
+
+      {device.status?.toLowerCase() === 'claimed' && (
+        <button
+          className="btn-card-release"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRelease(device.serial);
+          }}
+        >
+          Release
+        </button>
+      )}
     </div>
   );
 }

@@ -163,7 +163,12 @@ function App() {
             <div className="device-grid">
               {devices.length === 0 ? (
                 <div className="empty">
-                  <div className="empty-icon">📱</div>
+                  <div className="empty-icon">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ margin: '0 auto 12px auto', display: 'block', color: 'var(--text-muted)' }}>
+                      <rect x="5" y="2" width="14" height="20" rx="2.5" ry="2.5" />
+                      <line x1="12" y1="18" x2="12.01" y2="18" strokeWidth="2.5" />
+                    </svg>
+                  </div>
                   <h3>No Devices Detected</h3>
                   <p>Ensure adb is running and your Android devices are connected.</p>
                 </div>
