@@ -9,6 +9,193 @@ function DevicePage({ device, onBack, onRelease }) {
   const [videoWidth, setVideoWidth] = useState(0);
   const [videoHeight, setVideoHeight] = useState(0);
 
+  const [shellCmd, setShellCmd] = useState('');
+  const [navUrl, setNavUrl] = useState('');
+
+  const COORDINATOR_API = import.meta.env.VITE_COORDINATOR_API || `${window.location.protocol}//${window.location.hostname}:9002`;
+
+  const execShell = async (command) => {
+    try {
+      const res = await fetch(`${COORDINATOR_API}/api/v1/devices/${device.serial}/control`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'shell', command })
+      });
+      const data = await res.json();
+      return data;
+    } catch (err) {
+      console.error("Shell error", err);
+      return { success: false, message: err.message };
+    }
+  };
+
+  const [uploadProgress, setUploadProgress] = useState({
+    active: false,
+    stage: '', // 'uploading', 'installing', 'opening', 'done', 'error'
+    percent: 0,
+    message: '',
+    type: ''
+  });
+
+  const handleFileUpload = (file, type) => {
+    if (!wsUrl) return;
+    const uploadUrl = wsUrl.replace(/^ws(s?):\/\//i, 'http$1://').replace(/\/ws$/, '/upload');
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('type', type);
+
+    setUploadProgress({
+      active: true,
+      stage: 'uploading',
+      percent: 0,
+      message: 'Preparing upload...',
+      type: type
+    });
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', uploadUrl, true);
+
+    // Track upload progress (network phase, 0% to 50% of the progress bar)
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) {
+        const uploadPercent = Math.round((e.loaded / e.total) * 100);
+        const overallPercent = Math.round(uploadPercent * 0.5);
+        setUploadProgress({
+          active: true,
+          stage: 'uploading',
+          percent: overallPercent,
+          message: `Uploading file (${uploadPercent}%)`,
+          type: type
+        });
+      }
+    };
+
+    let lastIndex = 0;
+
+    const handleChunk = (chunk) => {
+      const lines = chunk.split('\n');
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const data = JSON.parse(line);
+          if (data.stage === 'installing') {
+            setUploadProgress({
+              active: true,
+              stage: 'installing',
+              percent: 75,
+              message: data.message || 'Installing on device...',
+              type: type
+            });
+          } else if (data.stage === 'opening') {
+            setUploadProgress({
+              active: true,
+              stage: 'opening',
+              percent: 90,
+              message: data.message || 'Opening application...',
+              type: type
+            });
+          } else if (data.stage === 'done') {
+            setUploadProgress({
+              active: true,
+              stage: 'done',
+              percent: 100,
+              message: data.message || 'Completed!',
+              type: type
+            });
+            setTimeout(() => {
+              setUploadProgress(prev => {
+                if (prev.type === type && prev.stage === 'done') {
+                  return { active: false, stage: '', percent: 0, message: '', type: '' };
+                }
+                return prev;
+              });
+            }, 3000);
+          } else if (data.stage === 'error') {
+            setUploadProgress({
+              active: true,
+              stage: 'error',
+              percent: 0,
+              message: data.message || 'An error occurred',
+              type: type
+            });
+            alert(`Upload Failed: ${data.message}`);
+            setTimeout(() => {
+              setUploadProgress(prev => {
+                if (prev.type === type && prev.stage === 'error') {
+                  return { active: false, stage: '', percent: 0, message: '', type: '' };
+                }
+                return prev;
+              });
+            }, 4000);
+          }
+        } catch (err) {
+          console.error("Failed to parse progress chunk:", err);
+        }
+      }
+    };
+
+    xhr.onreadystatechange = () => {
+      if (xhr.readyState === 3 || xhr.readyState === 4) {
+        const newText = xhr.responseText.substring(lastIndex);
+        lastIndex = xhr.responseText.length;
+        if (newText) {
+          handleChunk(newText);
+        }
+      }
+
+      if (xhr.readyState === 4) {
+        if (xhr.status < 200 || xhr.status >= 300) {
+          setUploadProgress(prev => {
+            if (prev.type === type && prev.stage !== 'error' && prev.stage !== 'done') {
+              alert(`Upload Error: Status ${xhr.status} ${xhr.statusText}`);
+              return { active: false, stage: '', percent: 0, message: '', type: '' };
+            }
+            return prev;
+          });
+        }
+      }
+    };
+
+    xhr.onerror = () => {
+      setUploadProgress({
+        active: true,
+        stage: 'error',
+        percent: 0,
+        message: 'Network error occurred.',
+        type: type
+      });
+      alert('Upload Error: Network failure');
+      setTimeout(() => {
+        setUploadProgress({ active: false, stage: '', percent: 0, message: '', type: '' });
+      }, 4000);
+    };
+
+    xhr.send(formData);
+  };
+
+  const handleDrop = (e, type) => {
+    e.preventDefault();
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleFileUpload(e.dataTransfer.files[0], type);
+    }
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+  };
+
+  const handleDropzoneClick = (type) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = type === 'app' ? '.apk' : '*/*';
+    input.onchange = (e) => {
+      if (e.target.files && e.target.files.length > 0) {
+        handleFileUpload(e.target.files[0], type);
+      }
+    };
+    input.click();
+  };
+
   const [cardOrder, setCardOrder] = useState(() => {
     try {
       const saved = localStorage.getItem('devicePageOrder');
@@ -455,13 +642,27 @@ function DevicePage({ device, onBack, onRelease }) {
               <div key="app_upload" className="dashboard-card" {...dragProps}>
                 <div className="card-header">
                   <span className="card-title" style={{ color: 'var(--text)' }}>🔖 App Upload</span>
-                  <button className="btn btn-sm btn-danger">Clear</button>
                 </div>
                 <div className="card-body">
-                  <div className="dropzone">
-                    <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>↑</span>
-                    Drop file to upload
-                  </div>
+                  {uploadProgress.active && uploadProgress.type === 'app' ? (
+                    <div className="upload-progress-container">
+                      <div className="upload-progress-info">
+                        <span className="upload-progress-message">{uploadProgress.message}</span>
+                        <span className="upload-progress-percent">{uploadProgress.percent}%</span>
+                      </div>
+                      <div className="upload-progress-bar-bg">
+                        <div 
+                          className={`upload-progress-bar-fill ${uploadProgress.stage}`} 
+                          style={{ width: `${uploadProgress.percent}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="dropzone" onClick={() => handleDropzoneClick('app')} onDrop={(e) => handleDrop(e, 'app')} onDragOver={handleDragOver} style={{ cursor: 'pointer' }}>
+                      <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>↑</span>
+                      Click or drop APK to install
+                    </div>
+                  )}
                 </div>
               </div>
       );
@@ -469,13 +670,27 @@ function DevicePage({ device, onBack, onRelease }) {
               <div key="file_upload" className="dashboard-card" {...dragProps}>
                 <div className="card-header">
                   <span className="card-title" style={{ color: 'var(--green)' }}>🔖 File Upload</span>
-                  <button className="btn btn-sm btn-danger">Clear</button>
                 </div>
                 <div className="card-body">
-                  <div className="dropzone">
-                    <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>↑</span>
-                    Drop file to upload
-                  </div>
+                  {uploadProgress.active && uploadProgress.type === 'file' ? (
+                    <div className="upload-progress-container">
+                      <div className="upload-progress-info">
+                        <span className="upload-progress-message">{uploadProgress.message}</span>
+                        <span className="upload-progress-percent">{uploadProgress.percent}%</span>
+                      </div>
+                      <div className="upload-progress-bar-bg">
+                        <div 
+                          className={`upload-progress-bar-fill ${uploadProgress.stage}`} 
+                          style={{ width: `${uploadProgress.percent}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="dropzone" onClick={() => handleDropzoneClick('file')} onDrop={(e) => handleDrop(e, 'file')} onDragOver={handleDragOver} style={{ cursor: 'pointer' }}>
+                      <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>↑</span>
+                      Click or drop file to upload
+                    </div>
+                  )}
                 </div>
               </div>
       );
@@ -485,7 +700,7 @@ function DevicePage({ device, onBack, onRelease }) {
                   <span className="card-title">⚙️ Maintenance</span>
                 </div>
                 <div className="card-body">
-                  <button className="btn btn-danger" style={{ width: '100%' }}>Restart Device</button>
+                  <button className="btn btn-danger" style={{ width: '100%' }} onClick={() => execShell('reboot')}>Restart Device</button>
                 </div>
               </div>
       );
@@ -493,16 +708,16 @@ function DevicePage({ device, onBack, onRelease }) {
               <div key="navigation" className="dashboard-card" {...dragProps}>
                 <div className="card-header">
                   <span className="card-title" style={{ color: 'var(--accent)' }}>🧭 Navigation</span>
-                  <button className="btn btn-sm btn-danger">Reset</button>
+                  <button className="btn btn-sm btn-danger" onClick={() => setNavUrl('')}>Reset</button>
                 </div>
                 <div className="card-body">
                   <div className="nav-input-row">
-                    <input type="text" className="nav-input" placeholder="http://..." />
-                    <button className="btn btn-primary">Open</button>
+                    <input type="text" className="nav-input" placeholder="http://..." value={navUrl} onChange={(e) => setNavUrl(e.target.value)} onKeyDown={(e) => { if(e.key === 'Enter' && navUrl) execShell(`am start -a android.intent.action.VIEW -d "${navUrl}"`) }} />
+                    <button className="btn btn-primary" onClick={() => { if(navUrl) execShell(`am start -a android.intent.action.VIEW -d "${navUrl}"`) }}>Open</button>
                   </div>
                   <div className="browser-icons">
-                     <button title="Chrome">🌐</button>
-                     <button title="Firefox">🦊</button>
+                     <button title="Chrome" onClick={() => execShell(`am start -n com.android.chrome/com.google.android.apps.chrome.Main -d "${navUrl || 'https://google.com'}"`)}>🌐</button>
+                     <button title="Firefox" onClick={() => execShell(`am start -n org.mozilla.firefox/.App -d "${navUrl || 'https://google.com'}"`)}>🦊</button>
                   </div>
                 </div>
               </div>
@@ -511,12 +726,12 @@ function DevicePage({ device, onBack, onRelease }) {
               <div key="shell" className="dashboard-card" {...dragProps}>
                 <div className="card-header">
                   <span className="card-title">🖥️ Shell</span>
-                  <button className="btn btn-sm btn-danger">Clear</button>
+                  <button className="btn btn-sm btn-danger" onClick={() => setShellCmd('')}>Clear</button>
                 </div>
                 <div className="card-body">
                   <div className="nav-input-row">
-                    <input type="text" className="nav-input" placeholder="ls -la" />
-                    <button className="btn btn-primary">▶</button>
+                    <input type="text" className="nav-input" placeholder="ls -la" value={shellCmd} onChange={(e) => setShellCmd(e.target.value)} onKeyDown={(e) => { if(e.key === 'Enter' && shellCmd) execShell(shellCmd).then(r => { if(r.message) alert(r.message) }) }} />
+                    <button className="btn btn-primary" onClick={() => { if(shellCmd) execShell(shellCmd).then(r => { if(r.message) alert(r.message) }) }}>▶</button>
                   </div>
                 </div>
               </div>
@@ -528,12 +743,12 @@ function DevicePage({ device, onBack, onRelease }) {
                 </div>
                 <div className="card-body">
                   <div className="app-grid">
-                    <button className="app-icon-btn"><span style={{ fontSize: '20px' }}>⚙️</span>Settings</button>
-                    <button className="app-icon-btn"><span style={{ fontSize: '20px' }}>🛒</span>App Store</button>
-                    <button className="app-icon-btn"><span style={{ fontSize: '20px' }}>🌐</span>Language</button>
-                    <button className="app-icon-btn"><span style={{ fontSize: '20px' }}>📶</span>Wifi</button>
-                    <button className="app-icon-btn"><span style={{ fontSize: '20px' }}>📦</span>Manage Apps</button>
-                    <button className="app-icon-btn"><span style={{ fontSize: '20px' }}>👨‍💻</span>Developer</button>
+                    <button className="app-icon-btn" onClick={() => execShell('am start -a android.settings.SETTINGS')}><span style={{ fontSize: '20px' }}>⚙️</span>Settings</button>
+                    <button className="app-icon-btn" onClick={() => execShell('am start -a android.intent.action.VIEW -d "market://details?id=com.android.chrome"')}><span style={{ fontSize: '20px' }}>🛒</span>App Store</button>
+                    <button className="app-icon-btn" onClick={() => execShell('am start -a android.settings.LOCALE_SETTINGS')}><span style={{ fontSize: '20px' }}>🌐</span>Language</button>
+                    <button className="app-icon-btn" onClick={() => execShell('am start -a android.settings.WIFI_SETTINGS')}><span style={{ fontSize: '20px' }}>📶</span>Wifi</button>
+                    <button className="app-icon-btn" onClick={() => execShell('am start -a android.settings.MANAGE_APPLICATIONS_SETTINGS')}><span style={{ fontSize: '20px' }}>📦</span>Manage Apps</button>
+                    <button className="app-icon-btn" onClick={() => execShell('am start -a android.settings.APPLICATION_DEVELOPMENT_SETTINGS')}><span style={{ fontSize: '20px' }}>👨‍💻</span>Developer</button>
                   </div>
                 </div>
               </div>
@@ -546,9 +761,9 @@ function DevicePage({ device, onBack, onRelease }) {
                 <div className="card-body">
                   <span style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '-4px' }}>Volume Control</span>
                   <div className="volume-row" style={{ display: 'flex', gap: '8px' }}>
-                    <button className="btn btn-ghost" style={{ flex: 1 }}>Mute</button>
-                    <button className="btn btn-ghost" style={{ flex: 1 }}>Vol -</button>
-                    <button className="btn btn-ghost" style={{ flex: 1 }}>Vol +</button>
+                    <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => sendControlKey(164)}>Mute</button>
+                    <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => sendControlKey(25)}>Vol -</button>
+                    <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => sendControlKey(24)}>Vol +</button>
                   </div>
                 </div>
               </div>
@@ -559,11 +774,26 @@ function DevicePage({ device, onBack, onRelease }) {
                   <span className="card-title" style={{ color: 'var(--text-link)' }}>⬆️ Upload File To Server</span>
                 </div>
                 <div className="card-body">
-                  <div className="dropzone">
-                    <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>↑</span>
-                    Drop file to upload
-                  </div>
-                  <button className="btn btn-ghost" style={{ marginTop: '8px', width: '100%' }}>Show History</button>
+                  {uploadProgress.active && uploadProgress.type === 'server' ? (
+                    <div className="upload-progress-container" style={{ marginBottom: '8px' }}>
+                      <div className="upload-progress-info">
+                        <span className="upload-progress-message">{uploadProgress.message}</span>
+                        <span className="upload-progress-percent">{uploadProgress.percent}%</span>
+                      </div>
+                      <div className="upload-progress-bar-bg">
+                        <div 
+                          className={`upload-progress-bar-fill ${uploadProgress.stage}`} 
+                          style={{ width: `${uploadProgress.percent}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="dropzone" onClick={() => handleDropzoneClick('server')} onDrop={(e) => handleDrop(e, 'server')} onDragOver={handleDragOver} style={{ cursor: 'pointer' }}>
+                      <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>↑</span>
+                      Click or drop file to save on server
+                    </div>
+                  )}
+                  <button className="btn btn-ghost" style={{ marginTop: '8px', width: '100%' }} onClick={() => alert('No history available yet.')}>Show History</button>
                 </div>
               </div>
       );

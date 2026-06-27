@@ -164,8 +164,8 @@ func (a *Agent) handleWS(w http.ResponseWriter, r *http.Request) {
 // handleIncomingEvent parses JSON from the Agent APK and updates the device state
 func (a *Agent) handleIncomingEvent(data []byte) {
 	var event struct {
-		Type string          `json:"type"`
-		Data json.RawMessage `json:"data"`
+		Type    string          `json:"type"`
+		Payload json.RawMessage `json:"payload"`
 	}
 	if err := json.Unmarshal(data, &event); err != nil {
 		return
@@ -176,23 +176,53 @@ func (a *Agent) handleIncomingEvent(data []byte) {
 	switch event.Type {
 	case "BATTERY_CHANGED":
 		var batt struct {
-			Level      int  `json:"level"`
-			IsCharging bool `json:"is_charging"`
+			Level    int  `json:"level"`
+			Charging bool `json:"charging"`
 		}
-		if err := json.Unmarshal(event.Data, &batt); err == nil {
+		if err := json.Unmarshal(event.Payload, &batt); err == nil {
 			a.device.State.Battery.Level = batt.Level
-			a.device.State.Battery.IsCharging = batt.IsCharging
+			a.device.State.Battery.IsCharging = batt.Charging
 			updated = true
 		}
-	case "NETWORK_CHANGED":
+	case "NETWORK_CONNECTED":
 		var net struct {
-			Connected bool   `json:"connected"`
-			WiFiSSID  string `json:"wifi_ssid"`
+			Network string `json:"network"`
+			SSID    string `json:"ssid"`
 		}
-		if err := json.Unmarshal(event.Data, &net); err == nil {
-			a.device.State.Network.Connected = net.Connected
-			a.device.State.Network.WiFiSSID = net.WiFiSSID
+		if err := json.Unmarshal(event.Payload, &net); err == nil {
+			a.device.State.Network.Connected = true
+			if net.Network == "wifi" && net.SSID != "" {
+				a.device.State.Network.WiFiSSID = net.SSID
+			} else {
+				a.device.State.Network.WiFiSSID = net.Network
+			}
 			updated = true
+		}
+	case "NETWORK_DISCONNECTED":
+		a.device.State.Network.Connected = false
+		a.device.State.Network.WiFiSSID = ""
+		updated = true
+	case "PACKAGE_INSTALLED", "PACKAGE_UPDATED":
+		var pkg struct {
+			PackageName string `json:"packageName"`
+			Action      string `json:"action"`
+		}
+		if err := json.Unmarshal(event.Payload, &pkg); err == nil && pkg.PackageName != "" {
+			slog.Info("agent: package installed/updated on device, auto-launching", "serial", a.serial, "package", pkg.PackageName)
+			// Launch using monkey command in a goroutine
+			go func() {
+				// Wait 1.5 seconds to make sure Android is completely finished with installation internally
+				time.Sleep(1500 * time.Millisecond)
+				
+				// Launch using monkey command: adb shell monkey -p <package_name> -c android.intent.category.LAUNCHER 1
+				cmd := exec.Command("adb", "-s", a.serial, "shell", "monkey", "-p", pkg.PackageName, "-c", "android.intent.category.LAUNCHER", "1")
+				out, err := cmd.CombinedOutput()
+				if err != nil {
+					slog.Warn("agent: failed to auto-launch app after install", "serial", a.serial, "package", pkg.PackageName, "err", err, "output", string(out))
+				} else {
+					slog.Info("agent: successfully launched app after install", "serial", a.serial, "package", pkg.PackageName)
+				}
+			}()
 		}
 	}
 	

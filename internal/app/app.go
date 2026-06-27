@@ -1,14 +1,11 @@
 package app
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"log/slog"
 	"net"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"time"
 
 	"protean-provider/internal/adb"
@@ -211,7 +208,7 @@ func (a *App) onDeviceConnected(event domain.DeviceEvent) {
 
 
 	// Install/push scrcpy-server.jar to device
-	if err := a.installScrcpyServer(context.Background(), d.Serial); err != nil {
+	if err := stream.PushScrcpyServer(context.Background(), d.Serial); err != nil {
 		slog.Warn("failed to install scrcpy-server.jar on device", "serial", d.Serial, "err", err)
 	}
 
@@ -333,51 +330,4 @@ func detectProviderIP(cfgIP string) string {
 	return "127.0.0.1"
 }
 
-// scrcpyServerJar returns the path to the scrcpy-server.jar file.
-// It looks next to the running executable first (for deployed builds),
-// then falls back to the source-tree location (for local dev / go run).
-func scrcpyServerJar() (string, error) {
-	// 1. Next to the binary: <exe-dir>/scrcpy-server.jar
-	if exe, err := os.Executable(); err == nil {
-		p := filepath.Join(filepath.Dir(exe), "scrcpy-server.jar")
-		if _, err := os.Stat(p); err == nil {
-			return p, nil
-		}
-	}
 
-	// 2. Source-tree location: internal/stream/scrcpy-server.jar
-	// (works when running via `go run` or in the project root)
-	p := filepath.Join("internal", "stream", "scrcpy-server.jar")
-	if _, err := os.Stat(p); err == nil {
-		return p, nil
-	}
-
-	return "", fmt.Errorf("scrcpy-server.jar not found next to binary or in internal/stream/ — run `make build` to copy it")
-}
-
-// installScrcpyServer pushes scrcpy-server.jar to /data/local/tmp/ on the device.
-// The file is read directly from disk — no embedding or temp-file extraction needed.
-func (a *App) installScrcpyServer(ctx context.Context, serial string) error {
-	jarPath, err := scrcpyServerJar()
-	if err != nil {
-		return fmt.Errorf("installScrcpyServer: %w", err)
-	}
-
-	slog.Info("adb: pushing scrcpy-server to device", "serial", serial, "src", jarPath)
-
-	var stderr bytes.Buffer
-	cmd := exec.CommandContext(ctx, "adb", "-s", serial, "push", jarPath, "/data/local/tmp/scrcpy-server.jar")
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("installScrcpyServer: adb push: %w (stderr: %q)", err, stderr.String())
-	}
-
-	// Ensure the file is readable by the app on-device.
-	chmodCmd := exec.CommandContext(ctx, "adb", "-s", serial, "shell", "chmod", "644", "/data/local/tmp/scrcpy-server.jar")
-	if err := chmodCmd.Run(); err != nil {
-		slog.Warn("adb: chmod 644 failed for scrcpy-server.jar", "serial", serial, "err", err)
-	}
-
-	slog.Info("adb: scrcpy-server successfully installed on device", "serial", serial)
-	return nil
-}

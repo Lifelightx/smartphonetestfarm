@@ -11,11 +11,22 @@ import (
 func DeployAgent(deviceSerial string, port int) error {
 	apkPath := "assets/protean-agent.apk"
 
-	// 1. Install the APK (with -g to auto-grant all permissions)
-	slog.Info("adb: Installing Agent...", "serial", deviceSerial)
-	installCmd := exec.Command("adb", "-s", deviceSerial, "install", "-r", "-g", apkPath)
-	if err := installCmd.Run(); err != nil {
-		return fmt.Errorf("failed to install agent: %v", err)
+	packageName := "com.protean.agent"
+
+	// 1. Check if the package is already installed to avoid forcefully stopping the running agent
+	slog.Info("adb: Checking if Agent is already installed...", "serial", deviceSerial)
+	checkCmd := exec.Command("adb", "-s", deviceSerial, "shell", "pm", "path", packageName)
+	out, _ := checkCmd.Output()
+
+	if len(out) == 0 {
+		// Not installed, proceed with installation
+		slog.Info("adb: Agent not found, installing...", "serial", deviceSerial)
+		installCmd := exec.Command("adb", "-s", deviceSerial, "install", "-r", "-g", apkPath)
+		if err := installCmd.Run(); err != nil {
+			return fmt.Errorf("failed to install agent: %v", err)
+		}
+	} else {
+		slog.Info("adb: Agent is already installed, skipping installation", "serial", deviceSerial)
 	}
 
 	// 2. Set up the Reverse TCP Tunnel so the agent can talk to your Go Provider on localhost

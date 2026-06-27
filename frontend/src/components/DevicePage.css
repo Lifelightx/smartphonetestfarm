@@ -422,3 +422,67 @@
     overflow: visible;
   }
 }
+
+/* ── Upload & Install Progress Bar ── */
+.upload-progress-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 4px;
+}
+
+.upload-progress-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+
+.upload-progress-message {
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.upload-progress-percent {
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.upload-progress-bar-bg {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+.upload-progress-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--accent) 0%, var(--accent-glow) 100%);
+  width: 0%;
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 0 8px var(--accent);
+}
+
+.upload-progress-bar-fill.installing {
+  background: linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%);
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.5);
+}
+
+.upload-progress-bar-fill.opening {
+  background: linear-gradient(90deg, #8b5cf6 0%, #a78bfa 100%);
+  box-shadow: 0 0 8px rgba(139, 92, 246, 0.5);
+}
+
+.upload-progress-bar-fill.done {
+  background: linear-gradient(90deg, var(--green) 0%, rgba(16, 185, 129, 0.5) 100%);
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
+}
+
+.upload-progress-bar-fill.error {
+  background: linear-gradient(90deg, var(--red) 0%, rgba(239, 68, 68, 0.5) 100%);
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
+}
