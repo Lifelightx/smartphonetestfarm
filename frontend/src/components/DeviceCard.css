@@ -1,7 +1,7 @@
 /* ── Device Grid & Cards ── */
 .device-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
   gap: 24px;
 }
 .device-card-minimal {
@@ -9,16 +9,17 @@
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 20px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: space-between;
   text-align: center;
-  min-height: 260px;
-  cursor: pointer;
+  min-height: 200px;
+  cursor: grab;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: var(--shadow-sm);
+  user-select: none;
 }
 .device-card-minimal:hover {
   border-color: var(--border-active);
@@ -53,6 +54,7 @@
 .status-pill-minimal.status-idle    { background: var(--green-bg); color: var(--green); border-color: rgba(16, 185, 129, 0.2); }
 .status-pill-minimal.status-claimed { background: var(--yellow-bg); color: var(--yellow); border-color: rgba(245, 158, 11, 0.2); }
 .status-pill-minimal.status-busy    { background: var(--red-bg); color: var(--red); border-color: rgba(239, 68, 68, 0.2); }
+.status-pill-minimal.status-offline { background: var(--surface2); color: var(--text-muted); border-color: var(--border); }
 
 .device-visual {
   flex: 1;
@@ -104,4 +106,32 @@
   background: var(--red);
   color: #ffffff;
   box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+.device-card-minimal.offline {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.device-card-minimal.offline:hover {
+  transform: none;
+  box-shadow: var(--shadow-sm);
+  border-color: var(--border);
+}
+.device-card-minimal.offline:hover .device-visual {
+  color: var(--border-active);
+  transform: none;
+}
+.device-card-minimal.offline:hover .device-svg-icon {
+  stroke: currentColor;
+}
+
+.device-card-minimal:active {
+  cursor: grabbing;
+}
+
+.device-card-minimal.dragging {
+  opacity: 0.35;
+  border: 2px dashed var(--accent);
+  box-shadow: none;
+  transform: scale(0.98);
 }

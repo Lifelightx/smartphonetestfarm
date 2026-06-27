@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -13,7 +11,6 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"protean-provider/internal/config"
-	"protean-provider/internal/db"
 	"protean-provider/internal/domain"
 	inboundGRPC "protean-provider/internal/grpc"
 	"protean-provider/internal/registry"
@@ -22,20 +19,6 @@ import (
 )
 
 func TestInboundServer_UnaryCalls(t *testing.T) {
-	// Create temp directory for SQLite DB
-	tempDir, err := os.MkdirTemp("", "provider-grpc-test-*")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
-
-	dbPath := filepath.Join(tempDir, "test.db")
-	store, err := db.Open(dbPath)
-	if err != nil {
-		t.Fatalf("failed to open database: %v", err)
-	}
-	defer store.Close()
-
 	// Get a free port for gRPC server
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -59,7 +42,7 @@ func TestInboundServer_UnaryCalls(t *testing.T) {
 
 	reg := registry.New()
 
-	sup, err := supervisor.New(context.Background(), "provider-1", nil, store, 7000, 7100, &dummyStream{})
+	sup, err := supervisor.New(context.Background(), "provider-1", nil, 7000, 7100, &dummyStream{})
 	if err != nil {
 		t.Fatalf("failed to create supervisor: %v", err)
 	}

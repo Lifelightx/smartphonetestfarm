@@ -104,7 +104,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 // Stop shuts down the gRPC and HTTP servers.
 func (s *Server) Stop() {
 	if s.grpcServer != nil {
-		s.grpcServer.GracefulStop()
+		s.grpcServer.Stop()
 	}
 	if s.httpServer != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -271,7 +271,14 @@ func (s *Server) getDevicesList() ([]DeviceJSON, error) {
 		SELECT serial, provider_ip, model, manufacturer, android, sdk, abi, ram_mb, storage_mb,
 		       display_width || 'x' || display_height || ' @ ' || display_dpi || 'dpi',
 		       battery, wifi_ssid, ip, status, stream_port, connected_at
-		FROM devices`)
+		FROM devices
+		ORDER BY CASE status
+		    WHEN 'idle' THEN 1
+		    WHEN 'claimed' THEN 2
+		    WHEN 'busy' THEN 2
+		    WHEN 'offline' THEN 3
+		    ELSE 4
+		END, connected_at DESC`)
 	if err != nil {
 		return nil, err
 	}

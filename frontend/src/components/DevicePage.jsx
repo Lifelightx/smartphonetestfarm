@@ -9,6 +9,45 @@ function DevicePage({ device, onBack, onRelease }) {
   const [videoWidth, setVideoWidth] = useState(0);
   const [videoHeight, setVideoHeight] = useState(0);
 
+  const [cardOrder, setCardOrder] = useState(() => {
+    try {
+      const saved = localStorage.getItem('devicePageOrder');
+      return saved ? JSON.parse(saved) : [
+        'app_upload', 'file_upload', 'maintenance', 'navigation', 
+        'shell', 'apps', 'advanced_input', 'upload_server'
+      ];
+    } catch {
+      return [
+        'app_upload', 'file_upload', 'maintenance', 'navigation', 
+        'shell', 'apps', 'advanced_input', 'upload_server'
+      ];
+    }
+  });
+  const [draggedCardIndex, setDraggedCardIndex] = useState(null);
+
+  const handleCardDragStart = (e, index) => {
+    setDraggedCardIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleCardDragOver = (e, index) => {
+    e.preventDefault();
+    if (draggedCardIndex === null || draggedCardIndex === index) return;
+    
+    const newOrder = [...cardOrder];
+    const draggedItem = newOrder[draggedCardIndex];
+    newOrder.splice(draggedCardIndex, 1);
+    newOrder.splice(index, 0, draggedItem);
+    
+    setCardOrder(newOrder);
+    localStorage.setItem('devicePageOrder', JSON.stringify(newOrder));
+    setDraggedCardIndex(index);
+  };
+
+  const handleCardDragEnd = () => {
+    setDraggedCardIndex(null);
+  };
+
   // Parse initial aspect ratio from device display info (e.g. "1080x2400 @ 450dpi")
   const getInitialAspectRatio = () => {
     if (!device.display) return { ratio: '9 / 19.5', isLandscape: false };
@@ -396,6 +435,142 @@ function DevicePage({ device, onBack, onRelease }) {
     if (w && h) { setVideoWidth(w); setVideoHeight(h); setRotation(w > h ? 90 : 0); }
   };
 
+  const renderCard = (id, index) => {
+    const isDragging = draggedCardIndex === index;
+    const dragProps = {
+      draggable: true,
+      onDragStart: (e) => handleCardDragStart(e, index),
+      onDragOver: (e) => handleCardDragOver(e, index),
+      onDragEnd: handleCardDragEnd,
+      style: {
+        cursor: isDragging ? 'grabbing' : 'grab',
+        opacity: isDragging ? 0.35 : 1,
+        transform: isDragging ? 'scale(0.98)' : 'none',
+        border: isDragging ? '2px dashed var(--accent)' : ''
+      }
+    };
+    
+    switch (id) {
+      case 'app_upload': return (
+              <div key="app_upload" className="dashboard-card" {...dragProps}>
+                <div className="card-header">
+                  <span className="card-title" style={{ color: 'var(--text)' }}>🔖 App Upload</span>
+                  <button className="btn btn-sm btn-danger">Clear</button>
+                </div>
+                <div className="card-body">
+                  <div className="dropzone">
+                    <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>↑</span>
+                    Drop file to upload
+                  </div>
+                </div>
+              </div>
+      );
+      case 'file_upload': return (
+              <div key="file_upload" className="dashboard-card" {...dragProps}>
+                <div className="card-header">
+                  <span className="card-title" style={{ color: 'var(--green)' }}>🔖 File Upload</span>
+                  <button className="btn btn-sm btn-danger">Clear</button>
+                </div>
+                <div className="card-body">
+                  <div className="dropzone">
+                    <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>↑</span>
+                    Drop file to upload
+                  </div>
+                </div>
+              </div>
+      );
+      case 'maintenance': return (
+              <div key="maintenance" className="dashboard-card" {...dragProps}>
+                <div className="card-header">
+                  <span className="card-title">⚙️ Maintenance</span>
+                </div>
+                <div className="card-body">
+                  <button className="btn btn-danger" style={{ width: '100%' }}>Restart Device</button>
+                </div>
+              </div>
+      );
+      case 'navigation': return (
+              <div key="navigation" className="dashboard-card" {...dragProps}>
+                <div className="card-header">
+                  <span className="card-title" style={{ color: 'var(--accent)' }}>🧭 Navigation</span>
+                  <button className="btn btn-sm btn-danger">Reset</button>
+                </div>
+                <div className="card-body">
+                  <div className="nav-input-row">
+                    <input type="text" className="nav-input" placeholder="http://..." />
+                    <button className="btn btn-primary">Open</button>
+                  </div>
+                  <div className="browser-icons">
+                     <button title="Chrome">🌐</button>
+                     <button title="Firefox">🦊</button>
+                  </div>
+                </div>
+              </div>
+      );
+      case 'shell': return (
+              <div key="shell" className="dashboard-card" {...dragProps}>
+                <div className="card-header">
+                  <span className="card-title">🖥️ Shell</span>
+                  <button className="btn btn-sm btn-danger">Clear</button>
+                </div>
+                <div className="card-body">
+                  <div className="nav-input-row">
+                    <input type="text" className="nav-input" placeholder="ls -la" />
+                    <button className="btn btn-primary">▶</button>
+                  </div>
+                </div>
+              </div>
+      );
+      case 'apps': return (
+              <div key="apps" className="dashboard-card" {...dragProps}>
+                <div className="card-header">
+                  <span className="card-title" style={{ color: 'var(--accent)' }}>📱 Apps</span>
+                </div>
+                <div className="card-body">
+                  <div className="app-grid">
+                    <button className="app-icon-btn"><span style={{ fontSize: '20px' }}>⚙️</span>Settings</button>
+                    <button className="app-icon-btn"><span style={{ fontSize: '20px' }}>🛒</span>App Store</button>
+                    <button className="app-icon-btn"><span style={{ fontSize: '20px' }}>🌐</span>Language</button>
+                    <button className="app-icon-btn"><span style={{ fontSize: '20px' }}>📶</span>Wifi</button>
+                    <button className="app-icon-btn"><span style={{ fontSize: '20px' }}>📦</span>Manage Apps</button>
+                    <button className="app-icon-btn"><span style={{ fontSize: '20px' }}>👨‍💻</span>Developer</button>
+                  </div>
+                </div>
+              </div>
+      );
+      case 'advanced_input': return (
+              <div key="advanced_input" className="dashboard-card" {...dragProps}>
+                <div className="card-header">
+                  <span className="card-title" style={{ color: 'var(--text)' }}>🎛️ Advanced Input</span>
+                </div>
+                <div className="card-body">
+                  <span style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '-4px' }}>Volume Control</span>
+                  <div className="volume-row" style={{ display: 'flex', gap: '8px' }}>
+                    <button className="btn btn-ghost" style={{ flex: 1 }}>Mute</button>
+                    <button className="btn btn-ghost" style={{ flex: 1 }}>Vol -</button>
+                    <button className="btn btn-ghost" style={{ flex: 1 }}>Vol +</button>
+                  </div>
+                </div>
+              </div>
+      );
+      case 'upload_server': return (
+              <div key="upload_server" className="dashboard-card" {...dragProps}>
+                <div className="card-header">
+                  <span className="card-title" style={{ color: 'var(--text-link)' }}>⬆️ Upload File To Server</span>
+                </div>
+                <div className="card-body">
+                  <div className="dropzone">
+                    <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>↑</span>
+                    Drop file to upload
+                  </div>
+                  <button className="btn btn-ghost" style={{ marginTop: '8px', width: '100%' }}>Show History</button>
+                </div>
+              </div>
+      );
+      default: return null;
+    }
+  };
+
   if (device.model === 'Loading...') {
     return (
       <div className="device-page" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '80vh', gap: '1.5rem' }}>
@@ -516,141 +691,7 @@ function DevicePage({ device, onBack, onRelease }) {
         <div className="tab-content" style={{ flex: 1, overflowY: 'auto', paddingTop: '16px', paddingBottom: '32px' }}>
           {activeTab === 'dashboard' && (
             <div className="dashboard-grid">
-              
-              {/* App Upload */}
-              <div className="dashboard-card">
-                <div className="card-header">
-                  <span className="card-title" style={{ color: 'var(--text)' }}>🔖 App Upload</span>
-                  <button className="btn btn-sm btn-danger">Clear</button>
-                </div>
-                <div className="card-body">
-                  <div className="dropzone">
-                    <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>↑</span>
-                    Drop file to upload
-                  </div>
-                </div>
-              </div>
-
-              {/* File Upload */}
-              <div className="dashboard-card">
-                <div className="card-header">
-                  <span className="card-title" style={{ color: 'var(--green)' }}>🔖 File Upload</span>
-                  <button className="btn btn-sm btn-danger">Clear</button>
-                </div>
-                <div className="card-body">
-                  <div className="dropzone">
-                    <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>↑</span>
-                    Drop file to upload
-                  </div>
-                </div>
-              </div>
-
-              {/* Maintenance */}
-              <div className="dashboard-card">
-                <div className="card-header">
-                  <span className="card-title">⚙️ Maintenance</span>
-                </div>
-                <div className="card-body">
-                  <button className="btn btn-danger" style={{ width: '100%' }}>Restart Device</button>
-                </div>
-              </div>
-
-              {/* Navigation */}
-              <div className="dashboard-card">
-                <div className="card-header">
-                  <span className="card-title" style={{ color: 'var(--accent)' }}>🧭 Navigation</span>
-                  <button className="btn btn-sm btn-danger">Reset</button>
-                </div>
-                <div className="card-body">
-                  <div className="nav-input-row">
-                    <input type="text" className="nav-input" placeholder="http://..." />
-                    <button className="btn btn-primary">Open</button>
-                  </div>
-                  <div className="browser-icons">
-                     <button title="Chrome">🌐</button>
-                     <button title="Firefox">🦊</button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Shell */}
-              <div className="dashboard-card">
-                <div className="card-header">
-                  <span className="card-title">🖥️ Shell</span>
-                  <button className="btn btn-sm btn-danger">Clear</button>
-                </div>
-                <div className="card-body">
-                  <div className="nav-input-row">
-                    <input type="text" className="nav-input" placeholder="ls -la" />
-                    <button className="btn btn-primary">▶</button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Apps Shortcuts */}
-              <div className="dashboard-card">
-                <div className="card-header">
-                  <span className="card-title" style={{ color: 'var(--accent)' }}>📱 Apps</span>
-                </div>
-                <div className="card-body">
-                  <div className="app-grid">
-                    <button className="app-icon-btn">
-                      <span style={{ fontSize: '20px' }}>⚙️</span>
-                      Settings
-                    </button>
-                    <button className="app-icon-btn">
-                      <span style={{ fontSize: '20px' }}>🛒</span>
-                      App Store
-                    </button>
-                    <button className="app-icon-btn">
-                      <span style={{ fontSize: '20px' }}>🌐</span>
-                      Language
-                    </button>
-                    <button className="app-icon-btn">
-                      <span style={{ fontSize: '20px' }}>📶</span>
-                      Wifi
-                    </button>
-                    <button className="app-icon-btn">
-                      <span style={{ fontSize: '20px' }}>📦</span>
-                      Manage Apps
-                    </button>
-                    <button className="app-icon-btn">
-                      <span style={{ fontSize: '20px' }}>👨‍💻</span>
-                      Developer
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Advanced Input */}
-              <div className="dashboard-card">
-                <div className="card-header">
-                  <span className="card-title" style={{ color: 'var(--text)' }}>🎛️ Advanced Input</span>
-                </div>
-                <div className="card-body">
-                  <span style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '-4px' }}>Volume Control</span>
-                  <div className="volume-row" style={{ display: 'flex', gap: '8px' }}>
-                    <button className="btn btn-ghost" style={{ flex: 1 }}>Mute</button>
-                    <button className="btn btn-ghost" style={{ flex: 1 }}>Vol -</button>
-                    <button className="btn btn-ghost" style={{ flex: 1 }}>Vol +</button>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Upload File to Server */}
-              <div className="dashboard-card">
-                <div className="card-header">
-                  <span className="card-title" style={{ color: 'var(--text-link)' }}>⬆️ Upload File To Server</span>
-                </div>
-                <div className="card-body">
-                  <div className="dropzone">
-                    <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>↑</span>
-                    Drop file to upload
-                  </div>
-                  <button className="btn btn-ghost" style={{ marginTop: '8px', width: '100%' }}>Show History</button>
-                </div>
-              </div>
-
+              {cardOrder.map((id, index) => renderCard(id, index))}
             </div>
           )}
 

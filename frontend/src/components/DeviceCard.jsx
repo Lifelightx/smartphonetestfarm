@@ -8,7 +8,17 @@ const PhoneIcon = () => (
   </svg>
 );
 
-function DeviceCard({ device, onClaim, onViewStream, onRelease }) {
+function DeviceCard({
+  device,
+  onClaim,
+  onViewStream,
+  onRelease,
+  draggable,
+  onDragStart,
+  onDragOver,
+  onDragEnd,
+  isDragging
+}) {
   const getStatusClass = (status) => {
     switch (status?.toLowerCase()) {
       case 'idle': return 'status-idle';
@@ -29,8 +39,12 @@ function DeviceCard({ device, onClaim, onViewStream, onRelease }) {
 
   return (
     <div
-      className={`device-card-minimal ${device.status?.toLowerCase()}`}
+      className={`device-card-minimal ${device.status?.toLowerCase()} ${isDragging ? 'dragging' : ''}`}
       onClick={handleCardClick}
+      draggable={draggable}
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDragEnd={onDragEnd}
     >
       <div className="card-top-bar">
         <span className="card-serial">{device.serial}</span>

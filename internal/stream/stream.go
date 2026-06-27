@@ -229,7 +229,9 @@ func (m *Manager) StartCapture(ctx context.Context, serial string, port int) err
 		defer close(s.done)
 		defer func() {
 			_ = httpServer.Close()
-			_ = serverCmd.Wait()
+			if serverCmd.Process != nil {
+				_ = serverCmd.Process.Kill()
+			}
 			_ = adbForwardRemove(context.Background(), serial, localVideoPort)
 			slog.Info("stream: capture goroutine exited", "serial", serial)
 		}()

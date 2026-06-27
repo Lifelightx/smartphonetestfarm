@@ -3,7 +3,7 @@
 //
 // The Supervisor is the top-level manager. When a device connects it spawns
 // a DeviceSupervisor; when it disconnects it tears it down. All DeviceSupervisors
-// share a single PortAllocator and DB store.
+// share a single PortAllocator.
 package supervisor
 
 import (
@@ -14,7 +14,6 @@ import (
 
 	"protean-provider/internal/adb"
 	"protean-provider/internal/agent"
-	"protean-provider/internal/db"
 	"protean-provider/internal/domain"
 )
 
@@ -24,7 +23,6 @@ const eventBufferSize = 128
 type Supervisor struct {
 	providerID string
 	adbClient  adb.Client
-	store      *db.DB
 	ports      *PortAllocator
 	streams    domain.StreamManager
 
@@ -36,10 +34,9 @@ type Supervisor struct {
 	events chan SupervisorEvent
 }
 
-// New creates a Supervisor. The PortAllocator is initialised from the DB so
-// existing allocations survive restarts.
-func New(ctx context.Context, providerID string, adbClient adb.Client, store *db.DB, minPort, maxPort int, streams domain.StreamManager) (*Supervisor, error) {
-	ports, err := NewPortAllocator(ctx, store, minPort, maxPort)
+// New creates a Supervisor.
+func New(ctx context.Context, providerID string, adbClient adb.Client, minPort, maxPort int, streams domain.StreamManager) (*Supervisor, error) {
+	ports, err := NewPortAllocator(ctx, minPort, maxPort)
 	if err != nil {
 		return nil, fmt.Errorf("supervisor: %w", err)
 	}
@@ -48,7 +45,6 @@ func New(ctx context.Context, providerID string, adbClient adb.Client, store *db
 	s := &Supervisor{
 		providerID: providerID,
 		adbClient:  adbClient,
-		store:      store,
 		ports:      ports,
 		streams:    streams,
 		devices:    make(map[string]*DeviceSupervisor),
@@ -70,7 +66,7 @@ func (s *Supervisor) OnDeviceConnected(ctx context.Context, device *domain.Devic
 		return nil
 	}
 
-	ds := newDeviceSupervisor(device, s.providerID, s.adbClient, s.store, s.ports, s.events, s.streams)
+	ds := newDeviceSupervisor(device, s.providerID, s.adbClient, s.ports, s.events, s.streams)
 	s.devices[device.Serial] = ds
 
 	go ds.Run(ctx)

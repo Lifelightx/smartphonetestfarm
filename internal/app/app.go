@@ -14,7 +14,6 @@ import (
 	"protean-provider/internal/adb"
 	"protean-provider/internal/config"
 	"protean-provider/internal/coordinator"
-	"protean-provider/internal/db"
 	"protean-provider/internal/domain"
 	inboundGRPC "protean-provider/internal/grpc"
 	"protean-provider/internal/registry"
@@ -32,7 +31,6 @@ type App struct {
 	tracker       *adb.Tracker
 	registry      domain.DeviceRegistry
 	coordinator   *coordinator.Client
-	db            *db.DB
 	supervisor    *supervisor.Supervisor
 	inboundServer *inboundGRPC.Server
 }
@@ -70,15 +68,6 @@ func New(cfg *config.Config) (*App, error) {
 	// ── Coordinator client ───────────────────────────────────────────────────
 	coord := coordinator.New(cfg.Coordinator, provider.ID)
 
-	// ── SQLite DB ────────────────────────────────────────────────────────────
-	if err := os.MkdirAll(filepath.Dir(cfg.DB.Path), 0o755); err != nil {
-		return nil, fmt.Errorf("app: create db dir: %w", err)
-	}
-	store, err := db.Open(cfg.DB.Path)
-	if err != nil {
-		return nil, fmt.Errorf("app: open db: %w", err)
-	}
-
 	// ── Stream Manager ──────────────────────────────────────────────────────
 	var sup *supervisor.Supervisor
 	streamMgr := stream.NewManager(cfg)
@@ -90,13 +79,11 @@ func New(cfg *config.Config) (*App, error) {
 		context.Background(),
 		provider.ID,
 		adbClient,
-		store,
 		cfg.Provider.MinPort,
 		cfg.Provider.MaxPort,
 		streamMgr,
 	)
 	if err != nil {
-		_ = store.Close()
 		return nil, fmt.Errorf("app: supervisor: %w", err)
 	}
 
@@ -109,7 +96,6 @@ func New(cfg *config.Config) (*App, error) {
 		tracker:       tracker,
 		registry:      reg,
 		coordinator:   coord,
-		db:            store,
 		supervisor:    sup,
 		inboundServer: inboundServer,
 	}, nil
@@ -122,7 +108,6 @@ func (a *App) Run(ctx context.Context) error {
 		"name", a.cfg.Provider.Name,
 		"host", a.cfg.Provider.Host,
 		"adb", fmt.Sprintf("%s:%d", a.cfg.ADB.Host, a.cfg.ADB.Port),
-		"db", a.cfg.DB.Path,
 	)
 
 	// ── Start inbound gRPC server ───────────────────────────────────────────
@@ -165,6 +150,9 @@ func (a *App) Run(ctx context.Context) error {
 
 		case event := <-events:
 			a.handleEvent(event)
+
+		case supEvent := <-a.supervisor.Events:
+			a.handleSupervisorEvent(supEvent)
 		}
 	}
 }
@@ -265,6 +253,24 @@ func (a *App) onDeviceDisconnected(event domain.DeviceEvent) {
 	}()
 }
 
+// handleSupervisorEvent processes events emitted by the supervisor (e.g. telemetry updates)
+func (a *App) handleSupervisorEvent(e supervisor.SupervisorEvent) {
+	if e.Device == nil {
+		return
+	}
+
+	slog.Info("app: received telemetry update from supervisor", "serial", e.Serial, "battery", e.Device.State.Battery.Level, "wifi", e.Device.State.Network.WiFiSSID)
+
+	// Best-effort notify coordinator of telemetry updates
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), a.cfg.Coordinator.CallTimeout)
+		defer cancel()
+		if err := a.coordinator.RegisterDevice(ctx, e.Device); err != nil {
+			slog.Warn("coordinator: failed to update device telemetry on coordinator", "serial", e.Serial, "err", err)
+		}
+	}()
+}
+
 // drainAndCleanup performs graceful shutdown of all subsystems.
 func (a *App) drainAndCleanup() {
 	slog.Info("stopping inbound grpc server…")
@@ -275,11 +281,6 @@ func (a *App) drainAndCleanup() {
 
 	slog.Info("disconnecting from coordinator…")
 	_ = a.coordinator.Disconnect(context.Background())
-
-	slog.Info("closing database…")
-	if err := a.db.Close(); err != nil {
-		slog.Warn("db: close error", "err", err)
-	}
 
 	slog.Info("shutdown complete", "remaining_devices", a.registry.Count())
 }

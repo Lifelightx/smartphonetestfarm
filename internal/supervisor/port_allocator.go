@@ -5,25 +5,19 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
-
-	"protean-provider/internal/db"
 )
 
 // PortAllocator manages a pool of TCP ports within a configured range.
-// It pre-loads existing allocations from SQLite on startup so it survives
-// provider restarts without ever double-allocating a port.
 type PortAllocator struct {
 	mu       sync.Mutex
 	minPort  int
 	maxPort  int
 	used     map[int]string // port → serial
 	bySerial map[string]int // serial → port
-	store    *db.DB
 }
 
-// NewPortAllocator creates a PortAllocator and restores any existing
-// allocations from the database.
-func NewPortAllocator(ctx context.Context, store *db.DB, minPort, maxPort int) (*PortAllocator, error) {
+// NewPortAllocator creates a PortAllocator.
+func NewPortAllocator(ctx context.Context, minPort, maxPort int) (*PortAllocator, error) {
 	if minPort >= maxPort {
 		return nil, fmt.Errorf("port allocator: minPort (%d) must be < maxPort (%d)", minPort, maxPort)
 	}
@@ -33,20 +27,6 @@ func NewPortAllocator(ctx context.Context, store *db.DB, minPort, maxPort int) (
 		maxPort:  maxPort,
 		used:     make(map[int]string),
 		bySerial: make(map[string]int),
-		store:    store,
-	}
-
-	// Restore existing allocations from the DB.
-	existing, err := store.GetAllocatedPorts(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("port allocator: load existing: %w", err)
-	}
-	for _, a := range existing {
-		if a.Port >= minPort && a.Port <= maxPort {
-			pa.used[a.Port] = a.Serial
-			pa.bySerial[a.Serial] = a.Port
-			slog.Debug("port allocator: restored", "serial", a.Serial, "port", a.Port)
-		}
 	}
 
 	slog.Info("port allocator: ready",
@@ -57,7 +37,7 @@ func NewPortAllocator(ctx context.Context, store *db.DB, minPort, maxPort int) (
 	return pa, nil
 }
 
-// Allocate reserves the next free port for the given serial and persists it.
+// Allocate reserves the next free port for the given serial.
 // Returns the allocated port or an error if the pool is exhausted.
 func (pa *PortAllocator) Allocate(ctx context.Context, serial string) (int, error) {
 	pa.mu.Lock()
@@ -74,13 +54,6 @@ func (pa *PortAllocator) Allocate(ctx context.Context, serial string) (int, erro
 			pa.used[port] = serial
 			pa.bySerial[serial] = port
 
-			if err := pa.store.AllocatePort(ctx, serial, port); err != nil {
-				// Roll back in-memory allocation on DB failure.
-				delete(pa.used, port)
-				delete(pa.bySerial, serial)
-				return 0, fmt.Errorf("port allocator: persist %s=%d: %w", serial, port, err)
-			}
-
 			slog.Debug("port allocator: allocated", "serial", serial, "port", port)
 			return port, nil
 		}
@@ -90,7 +63,7 @@ func (pa *PortAllocator) Allocate(ctx context.Context, serial string) (int, erro
 		pa.minPort, pa.maxPort, len(pa.used))
 }
 
-// Free releases the port for the given serial and removes it from the DB.
+// Free releases the port for the given serial.
 func (pa *PortAllocator) Free(ctx context.Context, serial string) {
 	pa.mu.Lock()
 	defer pa.mu.Unlock()
@@ -103,10 +76,6 @@ func (pa *PortAllocator) Free(ctx context.Context, serial string) {
 	delete(pa.used, port)
 	delete(pa.bySerial, serial)
 
-	if err := pa.store.FreePort(ctx, serial); err != nil {
-		slog.Warn("port allocator: failed to remove port from DB",
-			"serial", serial, "port", port, "err", err)
-	}
 	slog.Debug("port allocator: freed", "serial", serial, "port", port)
 }
 

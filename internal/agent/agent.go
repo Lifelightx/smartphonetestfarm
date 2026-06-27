@@ -110,7 +110,16 @@ func (a *Agent) Run(ctx context.Context) error {
 	select {
 	case <-agentCtx.Done():
 		a.teardown(context.Background())
-		srv.Shutdown(context.Background())
+		// Explicitly close active WS connection to unblock handleWS
+		a.mu.Lock()
+		if a.wsConn != nil {
+			_ = a.wsConn.Close()
+		}
+		a.mu.Unlock()
+
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 1*time.Second)
+		_ = srv.Shutdown(shutdownCtx)
+		shutdownCancel()
 		return nil
 	case err := <-serverErr:
 		if err != http.ErrServerClosed {

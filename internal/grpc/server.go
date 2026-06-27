@@ -70,7 +70,7 @@ func (s *Server) Start() error {
 func (s *Server) Stop() {
 	if s.grpcServer != nil {
 		slog.Info("grpc: stopping inbound server")
-		s.grpcServer.GracefulStop()
+		s.grpcServer.Stop()
 	}
 }
 

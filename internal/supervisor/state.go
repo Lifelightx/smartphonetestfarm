@@ -1,5 +1,7 @@
 package supervisor
 
+import "protean-provider/internal/domain"
+
 // DeviceState represents the current lifecycle state of a device managed
 // by this provider.
 //
@@ -51,9 +53,9 @@ func (s DeviceState) IsTerminal() bool {
 
 // SupervisorEvent is published when a device supervisor changes state.
 type SupervisorEvent struct {
-	Serial   string
-	OldState DeviceState
-	NewState DeviceState
-	// SessionID is non-empty when the transition involves a session.
+	Serial    string
+	OldState  DeviceState
+	NewState  DeviceState
 	SessionID string
+	Device    *domain.Device // Non-nil if telemetry/state updated
 }

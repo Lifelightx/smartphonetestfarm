@@ -15,6 +15,16 @@ function App() {
   const [toasts, setToasts] = useState([]);
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
 
+  const [sortedSerials, setSortedSerials] = useState(() => {
+    try {
+      const saved = localStorage.getItem('deviceOrder');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [draggedIndex, setDraggedIndex] = useState(null);
+
   useEffect(() => {
     const handlePopState = () => {
       setCurrentPath(window.location.pathname);
@@ -22,6 +32,70 @@ function App() {
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
+
+  // Sync devices with sortedSerials when devices list updates
+  useEffect(() => {
+    if (devices.length > 0) {
+      setSortedSerials((prev) => {
+        const currentSerials = devices.map(d => d.serial);
+        const newSerials = currentSerials.filter(s => !prev.includes(s));
+        if (newSerials.length > 0) {
+          const updated = [...prev, ...newSerials];
+          localStorage.setItem('deviceOrder', JSON.stringify(updated));
+          return updated;
+        }
+        // Tidy up removed devices
+        const filtered = prev.filter(s => currentSerials.includes(s));
+        if (filtered.length !== prev.length) {
+          localStorage.setItem('deviceOrder', JSON.stringify(filtered));
+          return filtered;
+        }
+        return prev;
+      });
+    }
+  }, [devices]);
+
+  const orderedDevices = [...devices].sort((a, b) => {
+    const idxA = sortedSerials.indexOf(a.serial);
+    const idxB = sortedSerials.indexOf(b.serial);
+
+    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+    if (idxA !== -1) return -1;
+    if (idxB !== -1) return 1;
+
+    const statusOrder = { idle: 1, claimed: 2, busy: 2, offline: 3 };
+    const orderA = statusOrder[a.status?.toLowerCase()] || 4;
+    const orderB = statusOrder[b.status?.toLowerCase()] || 4;
+    if (orderA !== orderB) return orderA - orderB;
+
+    return new Date(b.connected_at || 0) - new Date(a.connected_at || 0);
+  });
+
+  const handleDragStart = (e, index) => {
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e, index) => {
+    e.preventDefault();
+    if (draggedIndex === null || draggedIndex === index) return;
+
+    const newOrdered = [...orderedDevices];
+    const draggedItem = newOrdered[draggedIndex];
+    
+    newOrdered.splice(draggedIndex, 1);
+    newOrdered.splice(index, 0, draggedItem);
+    
+    const newSerials = newOrdered.map(d => d.serial);
+    setSortedSerials(newSerials);
+    localStorage.setItem('deviceOrder', JSON.stringify(newSerials));
+    
+    setDraggedIndex(index);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
+  };
 
   const navigate = (path) => {
     window.history.pushState({}, '', path);
@@ -157,8 +231,8 @@ function App() {
               </button>
             </div>
 
-            <div className="device-grid">
-              {devices.length === 0 ? (
+             <div className="device-grid">
+              {orderedDevices.length === 0 ? (
                 <div className="empty">
                   <div className="empty-icon">
                     <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ margin: '0 auto 12px auto', display: 'block', color: 'var(--text-muted)' }}>
@@ -170,13 +244,18 @@ function App() {
                   <p>Ensure adb is running and your Android devices are connected.</p>
                 </div>
               ) : (
-                devices.map((device) => (
+                orderedDevices.map((device, index) => (
                   <DeviceCard
                     key={device.serial}
                     device={device}
                     onClaim={handleClaim}
                     onViewStream={(serial) => navigate(`/device/${serial}`)}
                     onRelease={handleRelease}
+                    draggable={true}
+                    onDragStart={(e) => handleDragStart(e, index)}
+                    onDragOver={(e) => handleDragOver(e, index)}
+                    onDragEnd={handleDragEnd}
+                    isDragging={draggedIndex === index}
                   />
                 ))
               )}

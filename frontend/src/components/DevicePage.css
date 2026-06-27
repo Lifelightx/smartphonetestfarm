@@ -142,7 +142,6 @@
   transform: translateY(0);
 }
 
-/* ── Details / Controls Panel ── */
 .details-column {
   display: flex;
   flex-direction: column;
@@ -151,19 +150,19 @@
   min-height: 0;
   overflow-y: auto;
   padding-right: 8px;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
 }
 .details-column::-webkit-scrollbar {
-  width: 6px;
+  display: none; /* Chrome/Safari */
 }
-.details-column::-webkit-scrollbar-track {
-  background: transparent;
+
+.tab-content {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
-.details-column::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 10px;
-}
-.details-column::-webkit-scrollbar-thumb:hover {
-  background: var(--border-active);
+.tab-content::-webkit-scrollbar {
+  display: none;
 }
 
 .back-header {
@@ -279,10 +278,8 @@
 
 /* ── Dashboard Grid ── */
 .dashboard-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 16px;
-  align-items: start;
+  column-width: 280px;
+  column-gap: 16px;
 }
 
 .dashboard-card {
@@ -293,6 +290,8 @@
   flex-direction: column;
   box-shadow: var(--shadow-sm);
   overflow: hidden;
+  break-inside: avoid;
+  margin-bottom: 16px;
 }
 
 .card-header {

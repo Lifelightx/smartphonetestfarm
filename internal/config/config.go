@@ -14,7 +14,6 @@ type Config struct {
 	Provider    ProviderConfig    `mapstructure:"provider"`
 	Coordinator CoordinatorConfig `mapstructure:"coordinator"`
 	ADB         ADBConfig         `mapstructure:"adb"`
-	DB          DBConfig          `mapstructure:"db"`
 	Stream      StreamConfig      `mapstructure:"stream"`
 	Metrics     MetricsConfig     `mapstructure:"metrics"`
 	GRPCServer  GRPCServerConfig  `mapstructure:"grpc_server"`
@@ -52,11 +51,6 @@ type ADBConfig struct {
 	Host            string        `mapstructure:"host"`
 	Port            int           `mapstructure:"port"`
 	PropertyTimeout time.Duration `mapstructure:"property_timeout"`
-}
-
-// DBConfig controls the embedded SQLite database.
-type DBConfig struct {
-	Path string `mapstructure:"path"`
 }
 
 // StreamConfig controls the screen-capture subsystem.
@@ -123,7 +117,6 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("grpc_server.enabled", true)
 	v.SetDefault("logging.level", "info")
 	v.SetDefault("logging.format", "json")
-	v.SetDefault("db.path", "data/provider.db")
 	v.SetDefault("provider.min_port", 7400)
 	v.SetDefault("provider.max_port", 7700)
 

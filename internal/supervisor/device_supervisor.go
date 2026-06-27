@@ -10,7 +10,6 @@ import (
 
 	"protean-provider/internal/adb"
 	"protean-provider/internal/agent"
-	"protean-provider/internal/db"
 	"protean-provider/internal/domain"
 )
 
@@ -24,7 +23,6 @@ type DeviceSupervisor struct {
 	device     *domain.Device
 	providerID string
 	adbClient  adb.Client
-	store      *db.DB
 	ports      *PortAllocator
 	events     chan<- SupervisorEvent
 
@@ -44,7 +42,6 @@ func newDeviceSupervisor(
 	device *domain.Device,
 	providerID string,
 	adbClient adb.Client,
-	store *db.DB,
 	ports *PortAllocator,
 	events chan<- SupervisorEvent,
 	streams domain.StreamManager,
@@ -53,7 +50,6 @@ func newDeviceSupervisor(
 		device:     device,
 		providerID: providerID,
 		adbClient:  adbClient,
-		store:      store,
 		ports:      ports,
 		events:     events,
 		streams:    streams,
@@ -100,9 +96,31 @@ func (ds *DeviceSupervisor) Run(ctx context.Context) {
 		}
 	}()
 
-	// Log the connected event.
-	_ = ds.store.LogEvent(dsCtx, serial, "connected",
-		fmt.Sprintf("port=%d model=%s", port, ds.device.Info.Model))
+	// Listen to state updates from the agent (telemetry changes like battery/network)
+	go func() {
+		for {
+			select {
+			case <-dsCtx.Done():
+				return
+			case dev, ok := <-agt.StateUpdates:
+				if !ok {
+					return
+				}
+				ds.mu.RLock()
+				state := ds.state
+				sessionID := ds.sessionID
+				ds.mu.RUnlock()
+
+				ds.emit(SupervisorEvent{
+					Serial:    ds.device.Serial,
+					OldState:  state,
+					NewState:  state,
+					SessionID: sessionID,
+					Device:    dev,
+				})
+			}
+		}
+	}()
 
 	// The supervisor now sits idle, processing commands sent via Claim/Release/Activate.
 	<-dsCtx.Done()
@@ -156,9 +174,6 @@ func (ds *DeviceSupervisor) Claim(ctx context.Context, claimedBy string) (string
 	ds.state = StateClaimed
 	ds.sessionID = sessionID
 
-	_ = ds.store.LogEvent(ctx, ds.device.Serial, "claimed",
-		fmt.Sprintf("session=%s by=%s", sessionID, claimedBy))
-
 	ds.emit(SupervisorEvent{
 		Serial:    ds.device.Serial,
 		OldState:  old,
@@ -187,9 +202,6 @@ func (ds *DeviceSupervisor) Activate(ctx context.Context) error {
 	old := ds.state
 	ds.state = StateBusy
 
-	_ = ds.store.LogEvent(ctx, ds.device.Serial, "activated",
-		fmt.Sprintf("session=%s", ds.sessionID))
-
 	ds.emit(SupervisorEvent{
 		Serial:    ds.device.Serial,
 		OldState:  old,
@@ -214,8 +226,6 @@ func (ds *DeviceSupervisor) Release(ctx context.Context) error {
 	ds.state = StateReleasing
 
 	if ds.sessionID != "" {
-		_ = ds.store.LogEvent(ctx, ds.device.Serial, "released",
-			fmt.Sprintf("session=%s", ds.sessionID))
 		ds.sessionID = ""
 	}
 
@@ -253,7 +263,6 @@ func (ds *DeviceSupervisor) teardown(ctx context.Context) {
 	_ = ds.streams.StopCapture(ctx, ds.device.Serial)
 
 	ds.ports.Free(ctx, ds.device.Serial)
-	_ = ds.store.LogEvent(ctx, ds.device.Serial, "disconnected", "supervisor teardown")
 	slog.Info("device supervisor: torn down", "serial", ds.device.Serial)
 }
 

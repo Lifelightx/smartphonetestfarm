@@ -29,9 +29,6 @@ adb:
   property_timeout: "5s"
   poll_interval:    "2s"
 
-db:
-  path: "data/provider.db"   # SQLite file; relative to working directory
-
 stream:
   type:         "mjpeg"
   quality:      80
