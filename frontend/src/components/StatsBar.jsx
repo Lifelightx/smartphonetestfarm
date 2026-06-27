@@ -1,4 +1,5 @@
 import React from 'react';
+import './StatsBar.css';
 
 function StatsBar({ devices }) {
   const total = devices.length;

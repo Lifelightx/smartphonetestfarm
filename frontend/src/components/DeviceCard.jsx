@@ -1,4 +1,5 @@
 import React from 'react';
+import './DeviceCard.css';
 
 const PhoneIcon = () => (
   <svg className="device-svg-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round">

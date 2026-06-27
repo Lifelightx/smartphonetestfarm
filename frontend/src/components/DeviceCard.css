@@ -1,0 +1,107 @@
+/* ── Device Grid & Cards ── */
+.device-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 24px;
+}
+.device-card-minimal {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  text-align: center;
+  min-height: 260px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--shadow-sm);
+}
+.device-card-minimal:hover {
+  border-color: var(--border-active);
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+}
+.card-top-bar {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.card-serial {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: 'Inter', monospace;
+  font-weight: 500;
+  background: var(--surface2);
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+.status-pill-minimal {
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border: 1px solid transparent;
+}
+.status-pill-minimal.status-idle    { background: var(--green-bg); color: var(--green); border-color: rgba(16, 185, 129, 0.2); }
+.status-pill-minimal.status-claimed { background: var(--yellow-bg); color: var(--yellow); border-color: rgba(245, 158, 11, 0.2); }
+.status-pill-minimal.status-busy    { background: var(--red-bg); color: var(--red); border-color: rgba(239, 68, 68, 0.2); }
+
+.device-visual {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 16px 0;
+  color: var(--border-active);
+  transition: color 0.3s ease, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.device-card-minimal:hover .device-visual {
+  color: var(--text);
+  transform: scale(1.1);
+}
+.device-svg-icon {
+  stroke: currentColor;
+  transition: stroke 0.3s ease;
+}
+.device-card-minimal:hover .device-svg-icon {
+  stroke: var(--accent);
+}
+.device-info {
+  width: 100%;
+  margin-top: 12px;
+}
+.device-model {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: -0.01em;
+}
+.btn-card-release {
+  margin-top: 16px;
+  width: 100%;
+  padding: 8px 16px;
+  background: var(--red-bg);
+  border: 1px solid transparent;
+  color: var(--red);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.btn-card-release:hover {
+  background: var(--red);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}

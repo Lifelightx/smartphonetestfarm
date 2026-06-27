@@ -1,4 +1,5 @@
 import React from 'react';
+import './Header.css';
 
 const LogoIcon = () => (
   <svg className="header-logo-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -35,8 +36,8 @@ function Header({ theme, toggleTheme }) {
       <div className="header-logo">
         <LogoIcon />
       </div>
-      <h1 className="header-title">Protean STF Portal</h1>
-      <div className="header-subtitle">Live Device Farm</div>
+      <h1 className="header-title">Protean</h1>
+      <div className="header-subtitle"></div>
       <button className="theme-toggle-btn" onClick={toggleTheme} aria-label="Toggle Theme">
         {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
         <span>{theme === 'dark' ? 'Light' : 'Dark'}</span>

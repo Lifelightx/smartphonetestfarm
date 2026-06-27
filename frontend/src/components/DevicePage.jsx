@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import './DevicePage.css';
 function DevicePage({ device, onBack, onRelease }) {
   const canvasRef = useRef(null);
   const wsRef = useRef(null);
@@ -664,46 +665,69 @@ function DevicePage({ device, onBack, onRelease }) {
           )}
 
           {activeTab === 'info' && (
-            <div className="details-card">
-              <h3>📱 {device.manufacturer} {device.model}</h3>
-              <div className="meta-grid">
-                <div className="meta-item">
-                  <span className="meta-label">Serial</span>
-                  <span className="meta-val" style={{ fontFamily: 'monospace' }}>{device.serial}</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              <div className="details-card">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+                  <h3 style={{ margin: 0 }}> {device.manufacturer} {device.model}</h3>
                 </div>
-                <div className="meta-item">
-                  <span className="meta-label">OS Version</span>
-                  <span className="meta-val">Android {device.android} (SDK {device.sdk})</span>
-                </div>
-                <div className="meta-item">
-                  <span className="meta-label">CPU ABI</span>
-                  <span className="meta-val">{device.abi || 'Unknown'}</span>
-                </div>
-                <div className="meta-item">
-                  <span className="meta-label">Resolution</span>
-                  <span className="meta-val">{device.display || 'Unknown'}</span>
-                </div>
-                <div className="meta-item">
-                  <span className="meta-label">Battery</span>
-                  <span className="meta-val">{device.battery}%</span>
-                </div>
-                <div className="meta-item">
-                  <span className="meta-label">WiFi</span>
-                  <span className="meta-val">{device.wifi_ssid || 'Not connected'}</span>
-                </div>
-                {device.ip && (
+                
+                <h4 style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '12px', letterSpacing: '0.05em' }}>Hardware Specifications</h4>
+                <div className="meta-grid">
                   <div className="meta-item">
-                    <span className="meta-label">Device IP</span>
-                    <span className="meta-val">{device.ip}</span>
+                    <span className="meta-label">Serial</span>
+                    <span className="meta-val" style={{ fontFamily: 'monospace' }}>{device.serial}</span>
                   </div>
-                )}
-                <div className="meta-item">
-                  <span className="meta-label">Stream Port</span>
-                  <span className="meta-val">{streamPort}</span>
+                  <div className="meta-item">
+                    <span className="meta-label">OS Version</span>
+                    <span className="meta-val">Android {device.android} (SDK {device.sdk})</span>
+                  </div>
+                  <div className="meta-item">
+                    <span className="meta-label">CPU ABI</span>
+                    <span className="meta-val">{device.abi || 'Unknown'}</span>
+                  </div>
+                  <div className="meta-item">
+                    <span className="meta-label">Resolution</span>
+                    <span className="meta-val">{device.display || 'Unknown'}</span>
+                  </div>
+                  <div className="meta-item">
+                    <span className="meta-label">Memory (RAM)</span>
+                    <span className="meta-val">{device.ram_mb ? `${(device.ram_mb / 1024).toFixed(1)} GB` : 'Unknown'}</span>
+                  </div>
+                  <div className="meta-item">
+                    <span className="meta-label">Storage</span>
+                    <span className="meta-val">{device.storage_mb ? `${(device.storage_mb / 1024).toFixed(1)} GB` : 'Unknown'}</span>
+                  </div>
                 </div>
               </div>
-              <div style={{ marginTop: '24px', borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
-                <button className="btn btn-danger" onClick={onRelease}>Release Device</button>
+
+              <div className="details-card">
+                <h4 style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '12px', letterSpacing: '0.05em' }}>Network & Status</h4>
+                <div className="meta-grid">
+                  <div className="meta-item">
+                    <span className="meta-label">Battery</span>
+                    <span className="meta-val">{device.battery}%</span>
+                  </div>
+                  <div className="meta-item">
+                    <span className="meta-label">WiFi</span>
+                    <span className="meta-val">{device.wifi_ssid || 'Not connected'}</span>
+                  </div>
+                  <div className="meta-item">
+                    <span className="meta-label">Device IP</span>
+                    <span className="meta-val">{device.ip || 'Unknown'}</span>
+                  </div>
+                  <div className="meta-item">
+                    <span className="meta-label">Provider IP</span>
+                    <span className="meta-val">{device.provider_id || 'Unknown'}</span>
+                  </div>
+                  <div className="meta-item">
+                    <span className="meta-label">Stream Port</span>
+                    <span className="meta-val">{streamPort}</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div style={{ paddingTop: '8px' }}>
+                <button className="btn btn-danger" onClick={onRelease} style={{ width: '100%', padding: '12px' }}>Release Device</button>
               </div>
             </div>
           )}
