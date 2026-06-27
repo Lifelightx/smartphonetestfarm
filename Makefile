@@ -52,7 +52,7 @@ run-coordinator: build-coordinator
 
 ## run-frontend: Run the Vite React developer server for the user interface
 run-frontend:
-	cd frontend && npm run dev -- --host
+	cd frontend && npm run dev 
 
 
 

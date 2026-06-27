@@ -33,6 +33,7 @@ type Server struct {
 	activeHBs  map[string]context.CancelFunc
 	grpcServer *grpc.Server
 	httpServer *http.Server
+	wsManager  *WSManager
 }
 
 func NewServer(cfg Config, db *DB) *Server {
@@ -40,6 +41,7 @@ func NewServer(cfg Config, db *DB) *Server {
 		cfg:       cfg,
 		db:        db,
 		activeHBs: make(map[string]context.CancelFunc),
+		wsManager: NewWSManager(),
 	}
 }
 
@@ -65,6 +67,7 @@ func (s *Server) Start() error {
 	httpPort := s.cfg.GRPCPort + 2
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v1/devices", s.handleListDevices)
+	mux.HandleFunc("/api/v1/devices/ws", s.wsManager.HandleWS)
 	mux.HandleFunc("/api/v1/devices/", s.handleDeviceAction)
 
 	s.httpServer = &http.Server{
@@ -78,6 +81,8 @@ func (s *Server) Start() error {
 			slog.Error("coordinator: HTTP server error", "err", err)
 		}
 	}()
+
+	go s.deviceListBroadcastLoop()
 
 	return nil
 }
@@ -261,20 +266,14 @@ type DeviceJSON struct {
 	ConnectedAt  time.Time `json:"connected_at"`
 }
 
-func (s *Server) handleListDevices(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
+func (s *Server) getDevicesList() ([]DeviceJSON, error) {
 	rows, err := s.db.db.Query(`
 		SELECT serial, provider_ip, model, manufacturer, android, sdk, abi, ram_mb, storage_mb,
 		       display_width || 'x' || display_height || ' @ ' || display_dpi || 'dpi',
 		       battery, wifi_ssid, ip, status, stream_port, connected_at
 		FROM devices`)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -283,14 +282,44 @@ func (s *Server) handleListDevices(w http.ResponseWriter, r *http.Request) {
 		var d DeviceJSON
 		err := rows.Scan(&d.Serial, &d.ProviderID, &d.Model, &d.Manufacturer, &d.Android, &d.SDK, &d.ABI, &d.RAM, &d.Storage, &d.Display, &d.Battery, &d.WiFi, &d.IP, &d.Status, &d.StreamPort, &d.ConnectedAt)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+			return nil, err
 		}
 		list = append(list, d)
+	}
+	if list == nil {
+		list = []DeviceJSON{}
+	}
+	return list, nil
+}
+
+func (s *Server) handleListDevices(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	list, err := s.getDevicesList()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(list)
+}
+
+func (s *Server) deviceListBroadcastLoop() {
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+	for {
+		<-ticker.C
+		list, err := s.getDevicesList()
+		if err == nil {
+			s.wsManager.Broadcast("DEVICE_LIST_UPDATE", list)
+		} else {
+			slog.Error("coordinator: failed to get device list for broadcast", "err", err)
+		}
+	}
 }
 
 func (s *Server) handleDeviceAction(w http.ResponseWriter, r *http.Request) {
@@ -378,6 +407,13 @@ func (s *Server) handleDeviceAction(w http.ResponseWriter, r *http.Request) {
 			"message":    "Device claimed successfully",
 		})
 
+		s.wsManager.Broadcast("DEVICE_CLAIMED", map[string]interface{}{
+			"serial":     serial,
+			"session_id": sessionID,
+			"port":       resp.Port,
+			"claimed_by": claimedBy,
+		})
+
 	} else if action == "release" {
 		slog.Info("coordinator: release requested", "serial", serial)
 
@@ -411,6 +447,10 @@ func (s *Server) handleDeviceAction(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"success": true,
 			"message": "Device released successfully",
+		})
+
+		s.wsManager.Broadcast("DEVICE_RELEASED", map[string]interface{}{
+			"serial": serial,
 		})
 	} else if action == "control" {
 		var reqBody struct {

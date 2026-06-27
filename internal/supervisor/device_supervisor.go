@@ -86,8 +86,9 @@ func (ds *DeviceSupervisor) Run(ctx context.Context) {
 
 	slog.Info("device supervisor: port allocated", "serial", serial, "port", port)
 
-	// Spawn the ADB agent for this device.
-	agt := agent.New(ds.device, port+1000, ds.adbClient)
+	// Spawn the Protean Agent for this device (using port + 3000 for the WebSocket reverse proxy)
+	// (Note: port+2000 is used by scrcpy-server for adb forward)
+	agt := agent.New(ds.device, port+3000, ds.adbClient)
 	ds.mu.Lock()
 	ds.agt = agt
 	ds.mu.Unlock()

@@ -15,7 +15,7 @@ config/provider.local.yaml
 .idea/
 .vscode/
 *.swp
-
+data
 # OS
 .DS_Store
 

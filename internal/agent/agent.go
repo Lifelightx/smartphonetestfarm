@@ -13,35 +13,45 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os/exec"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/gorilla/websocket"
+
 	"protean-provider/internal/adb"
 	"protean-provider/internal/domain"
 )
 
 const (
-	// defaultRefreshInterval is how often the agent polls live device state.
-	defaultRefreshInterval = 30 * time.Second
 	// shellTimeout is the maximum time allowed for a single ADB shell command.
 	shellTimeout = 15 * time.Second
 )
 
+var upgrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
+	CheckOrigin: func(r *http.Request) bool {
+		return true // Allow localhost internal connection
+	},
+}
+
 // Agent manages the ADB bridge for a single claimed device.
 type Agent struct {
 	serial  string
-	port    int      // allocated TCP port (host side)
+	port    int      // allocated TCP port (host side for websocket reverse proxy)
 	adb     adb.Client
 	device  *domain.Device
 
 	mu       sync.RWMutex
-	forwards []ForwardRule
 	stopped  bool
+	wsConn   *websocket.Conn // Active WebSocket connection from Android APK
 
 	cancel context.CancelFunc
 	done   chan struct{}
@@ -74,29 +84,121 @@ func (a *Agent) Run(ctx context.Context) error {
 	defer close(a.done)
 	defer cancel()
 
-	slog.Info("agent: starting", "serial", a.serial, "port", a.port)
+	slog.Info("agent: starting ws listener", "serial", a.serial, "port", a.port)
 
-	// Establish the primary port forward.
-	// Convention: forward local port → device port 8080 (the STF agent listener).
-	// A real implementation would use the STF agent APK's actual port.
-	if err := a.Forward(agentCtx, a.port, 8080); err != nil {
-		slog.Warn("agent: primary forward failed (continuing without it)",
-			"serial", a.serial, "err", err)
+	// 1. Start the HTTP server to listen for the Android Agent's WebSocket connection
+	mux := http.NewServeMux()
+	mux.HandleFunc("/ws", a.handleWS)
+
+	srv := &http.Server{
+		Addr:    fmt.Sprintf("127.0.0.1:%d", a.port),
+		Handler: mux,
 	}
 
-	// Periodic state refresh.
-	ticker := time.NewTicker(defaultRefreshInterval)
-	defer ticker.Stop()
+	serverErr := make(chan error, 1)
+	go func() {
+		serverErr <- srv.ListenAndServe()
+	}()
+
+	// 2. Deploy the Agent APK which will setup adb reverse and connect back
+	go func() {
+		if err := adb.DeployAgent(a.serial, a.port); err != nil {
+			slog.Warn("agent: failed to deploy apk", "serial", a.serial, "err", err)
+		}
+	}()
+
+	select {
+	case <-agentCtx.Done():
+		a.teardown(context.Background())
+		srv.Shutdown(context.Background())
+		return nil
+	case err := <-serverErr:
+		if err != http.ErrServerClosed {
+			slog.Error("agent: ws server failed", "serial", a.serial, "err", err)
+			return err
+		}
+	}
+	return nil
+}
+
+func (a *Agent) handleWS(w http.ResponseWriter, r *http.Request) {
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		slog.Error("agent: ws upgrade failed", "serial", a.serial, "err", err)
+		return
+	}
+
+	a.mu.Lock()
+	a.wsConn = conn
+	a.mu.Unlock()
+
+	slog.Info("agent: android apk connected via websocket", "serial", a.serial)
+
+	defer func() {
+		conn.Close()
+		a.mu.Lock()
+		if a.wsConn == conn {
+			a.wsConn = nil
+		}
+		a.mu.Unlock()
+	}()
 
 	for {
-		select {
-		case <-agentCtx.Done():
-			a.teardown(context.Background())
-			return nil
-
-		case <-ticker.C:
-			a.refreshState(agentCtx)
+		_, message, err := conn.ReadMessage()
+		if err != nil {
+			break
 		}
+		a.handleIncomingEvent(message)
+	}
+}
+
+// handleIncomingEvent parses JSON from the Agent APK and updates the device state
+func (a *Agent) handleIncomingEvent(data []byte) {
+	var event struct {
+		Type string          `json:"type"`
+		Data json.RawMessage `json:"data"`
+	}
+	if err := json.Unmarshal(data, &event); err != nil {
+		return
+	}
+
+	a.mu.Lock()
+	updated := false
+	switch event.Type {
+	case "BATTERY_CHANGED":
+		var batt struct {
+			Level      int  `json:"level"`
+			IsCharging bool `json:"is_charging"`
+		}
+		if err := json.Unmarshal(event.Data, &batt); err == nil {
+			a.device.State.Battery.Level = batt.Level
+			a.device.State.Battery.IsCharging = batt.IsCharging
+			updated = true
+		}
+	case "NETWORK_CHANGED":
+		var net struct {
+			Connected bool   `json:"connected"`
+			WiFiSSID  string `json:"wifi_ssid"`
+		}
+		if err := json.Unmarshal(event.Data, &net); err == nil {
+			a.device.State.Network.Connected = net.Connected
+			a.device.State.Network.WiFiSSID = net.WiFiSSID
+			updated = true
+		}
+	}
+	
+	if updated {
+		a.device.LastSeen = time.Now()
+		deviceSnapshot := *a.device // Copy
+		a.mu.Unlock()
+
+		// Publish to StateUpdates
+		select {
+		case a.StateUpdates <- &deviceSnapshot:
+		default:
+		}
+	} else {
+		a.mu.Unlock()
 	}
 }
 
@@ -113,165 +215,17 @@ func (a *Agent) Stop() {
 	close(a.StateUpdates)
 }
 
-// Forward adds a TCP port forward rule: host localPort → device remotePort.
-// The rule is persisted in-memory and torn down when the agent stops.
-func (a *Agent) Forward(ctx context.Context, localPort, remotePort int) error {
-	a.mu.Lock()
-	if a.stopped {
-		a.mu.Unlock()
-		return ErrAgentStopped
-	}
-	a.mu.Unlock()
-
-	args := []string{
-		"-s", a.serial,
-		"forward",
-		fmt.Sprintf("tcp:%d", localPort),
-		fmt.Sprintf("tcp:%d", remotePort),
-	}
-
-	if err := runADB(ctx, args...); err != nil {
-		return fmt.Errorf("agent: forward tcp:%d→tcp:%d on %s: %w",
-			localPort, remotePort, a.serial, err)
-	}
-
-	a.mu.Lock()
-	a.forwards = append(a.forwards, ForwardRule{
-		LocalPort:  localPort,
-		RemotePort: remotePort,
-		Serial:     a.serial,
-	})
-	a.mu.Unlock()
-
-	slog.Info("agent: forward established",
-		"serial", a.serial,
-		"local", localPort,
-		"remote", remotePort,
-	)
-	return nil
-}
-
-// RemoveForward removes a specific port forward rule.
-func (a *Agent) RemoveForward(ctx context.Context, localPort int) error {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	args := []string{
-		"-s", a.serial,
-		"forward", "--remove",
-		fmt.Sprintf("tcp:%d", localPort),
-	}
-	if err := runADB(ctx, args...); err != nil {
-		return fmt.Errorf("agent: remove forward tcp:%d on %s: %w", localPort, a.serial, err)
-	}
-
-	// Remove from in-memory list.
-	filtered := a.forwards[:0]
-	for _, f := range a.forwards {
-		if f.LocalPort != localPort {
-			filtered = append(filtered, f)
-		}
-	}
-	a.forwards = filtered
-
-	slog.Info("agent: forward removed", "serial", a.serial, "local", localPort)
-	return nil
-}
-
-// Shell executes a single ADB shell command on the device and returns the output.
-func (a *Agent) Shell(ctx context.Context, cmd string) (CommandResult, error) {
-	a.mu.RLock()
-	stopped := a.stopped
-	a.mu.RUnlock()
-
-	if stopped {
-		return CommandResult{}, ErrAgentStopped
-	}
-
-	cmdCtx, cancel := context.WithTimeout(ctx, shellTimeout)
-	defer cancel()
-
-	out, err := a.adb.Shell(cmdCtx, a.serial, cmd)
-	if err != nil {
-		return CommandResult{ExitCode: -1}, fmt.Errorf("agent: shell %q: %w", cmd, err)
-	}
-
-	return CommandResult{Output: out, ExitCode: 0}, nil
-}
-
-// ActiveForwards returns a snapshot of the currently active forward rules.
-func (a *Agent) ActiveForwards() []ForwardRule {
-	a.mu.RLock()
-	defer a.mu.RUnlock()
-	result := make([]ForwardRule, len(a.forwards))
-	copy(result, a.forwards)
-	return result
-}
-
-// Device returns the most recent device snapshot the agent holds.
-func (a *Agent) Device() *domain.Device {
-	a.mu.RLock()
-	defer a.mu.RUnlock()
-	return a.device
-}
-
-// ── internal ───────────────────────────────────────────────────────────────────
-
-// refreshState re-fetches live battery and network state from the device and
-// publishes the updated snapshot to StateUpdates.
-func (a *Agent) refreshState(ctx context.Context) {
-	refreshCtx, cancel := context.WithTimeout(ctx, shellTimeout)
-	defer cancel()
-
-	// Re-fetch the full device including live state.
-	updated, err := adb.FetchProperties(refreshCtx, a.adb, a.serial)
-	if err != nil {
-		slog.Warn("agent: state refresh failed", "serial", a.serial, "err", err)
-		return
-	}
-
-	// Preserve immutable identity fields from the original device.
-	a.mu.Lock()
-	updated.ConnectedAt = a.device.ConnectedAt
-	a.device = updated
-	a.device.LastSeen = time.Now()
-	a.mu.Unlock()
-
-	// Publish non-blocking.
-	select {
-	case a.StateUpdates <- updated:
-	default:
-		// Consumer is slow; drop the update rather than block.
-	}
-
-	// slog.Debug("agent: state refreshed",
-	// 	"serial", a.serial,
-	// 	"battery", updated.State.Battery.Level,
-	// 	"ip", updated.State.Network.IP,
-	// )
-}
-
-// teardown removes all port forwards established by this agent.
+// teardown removes the ADB reverse tunnel.
 func (a *Agent) teardown(ctx context.Context) {
-	a.mu.Lock()
-	forwards := make([]ForwardRule, len(a.forwards))
-	copy(forwards, a.forwards)
-	a.forwards = nil
-	a.mu.Unlock()
-
-	for _, f := range forwards {
-		args := []string{
-			"-s", a.serial,
-			"forward", "--remove",
-			fmt.Sprintf("tcp:%d", f.LocalPort),
-		}
-		if err := runADB(ctx, args...); err != nil {
-			slog.Warn("agent: teardown forward failed",
-				"serial", a.serial, "local", f.LocalPort, "err", err)
-		} else {
-			slog.Info("agent: forward removed on teardown",
-				"serial", a.serial, "local", f.LocalPort)
-		}
+	args := []string{
+		"-s", a.serial,
+		"reverse", "--remove",
+		fmt.Sprintf("tcp:%d", a.port),
+	}
+	if err := runADB(ctx, args...); err != nil {
+		slog.Warn("agent: teardown reverse failed", "serial", a.serial, "port", a.port, "err", err)
+	} else {
+		slog.Info("agent: reverse tunnel removed on teardown", "serial", a.serial, "port", a.port)
 	}
 	slog.Info("agent: stopped", "serial", a.serial)
 }
@@ -303,6 +257,27 @@ func parseExitCode(output string) (string, int) {
 		return output[:idx], -1
 	}
 	return strings.TrimSpace(output[:idx]), code
+}
+
+// Shell executes a single ADB shell command on the device and returns the output.
+func (a *Agent) Shell(ctx context.Context, cmd string) (CommandResult, error) {
+	a.mu.RLock()
+	stopped := a.stopped
+	a.mu.RUnlock()
+
+	if stopped {
+		return CommandResult{}, ErrAgentStopped
+	}
+
+	cmdCtx, cancel := context.WithTimeout(ctx, shellTimeout)
+	defer cancel()
+
+	out, err := a.adb.Shell(cmdCtx, a.serial, cmd)
+	if err != nil {
+		return CommandResult{ExitCode: -1}, fmt.Errorf("agent: shell %q: %w", cmd, err)
+	}
+
+	return CommandResult{Output: out, ExitCode: 0}, nil
 }
 
 // ShellWithExitCode runs a shell command and captures the exit code using the

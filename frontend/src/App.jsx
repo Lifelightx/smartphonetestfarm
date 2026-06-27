@@ -3,12 +3,13 @@ import Header from './components/Header';
 import StatsBar from './components/StatsBar';
 import DeviceCard from './components/DeviceCard';
 import DevicePage from './components/DevicePage';
+import { useDevicesWS } from './hooks/useDevicesWS';
 
 // Coordinator's API address (usually GRPCPort + 2, e.g. 9002)
 const COORDINATOR_API = import.meta.env.VITE_COORDINATOR_API || `${window.location.protocol}//${window.location.hostname}:9002`;
 
 function App() {
-  const [devices, setDevices] = useState([]);
+  const { devices, loading: wsLoading, wsError, setDevices } = useDevicesWS();
   const [loading, setLoading] = useState(false);
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
   const [toasts, setToasts] = useState([]);
@@ -73,11 +74,7 @@ function App() {
     }
   };
 
-  useEffect(() => {
-    fetchDevices();
-    const interval = setInterval(fetchDevices, 5000);
-    return () => clearInterval(interval);
-  }, []);
+
 
   const showToast = (message, type = 'success') => {
     const id = Date.now();
@@ -155,8 +152,8 @@ function App() {
 
             <div className="toolbar">
               <h2>Connected Devices</h2>
-              <button className="btn btn-ghost" onClick={fetchDevices} disabled={loading}>
-                {loading ? <span className="spinner"></span> : 'Refresh'}
+              <button className="btn btn-ghost" onClick={fetchDevices} disabled={loading || wsLoading}>
+                {loading || wsLoading ? <span className="spinner"></span> : 'Refresh'}
               </button>
             </div>
 

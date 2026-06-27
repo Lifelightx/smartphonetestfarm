@@ -4,7 +4,7 @@ function DevicePage({ device, onBack, onRelease }) {
   const wsRef = useRef(null);
   const [errorMsg, setErrorMsg] = useState('');
   const [isPlaying, setIsPlaying] = useState(false);
-  const [activeTab, setActiveTab] = useState('actions');
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [videoWidth, setVideoWidth] = useState(0);
   const [videoHeight, setVideoHeight] = useState(0);
 
@@ -489,104 +489,224 @@ function DevicePage({ device, onBack, onRelease }) {
         </div>
       </div>
 
-      {/* ── RIGHT: Device details & control tabs ──────────────────────────── */}
+      {/* ── RIGHT: Control & Overview Tabs ──────────────────────────── */}
       <div className="details-column">
         <div className="back-header">
           <button className="btn btn-ghost" onClick={onBack}>
-            ← Back to Dashboard
+            ← Dashboard
           </button>
           <span className="status-pill status-claimed" style={{ marginLeft: '0' }}>
-            Active Session
+            {device.model}
           </span>
         </div>
 
-        <div className="details-card">
-          <h3>📱 {device.manufacturer} {device.model}</h3>
-          <div className="meta-grid">
-            <div className="meta-item">
-              <span className="meta-label">Serial</span>
-              <span className="meta-val" style={{ fontFamily: 'monospace' }}>{device.serial}</span>
-            </div>
-            <div className="meta-item">
-              <span className="meta-label">OS Version</span>
-              <span className="meta-val">Android {device.android} (SDK {device.sdk})</span>
-            </div>
-            <div className="meta-item">
-              <span className="meta-label">CPU ABI</span>
-              <span className="meta-val">{device.abi || 'Unknown'}</span>
-            </div>
-            <div className="meta-item">
-              <span className="meta-label">Resolution</span>
-              <span className="meta-val">{device.display || 'Unknown'}</span>
-            </div>
-            <div className="meta-item">
-              <span className="meta-label">Battery</span>
-              <span className="meta-val">{device.battery}%</span>
-            </div>
-            <div className="meta-item">
-              <span className="meta-label">WiFi</span>
-              <span className="meta-val">{device.wifi_ssid || 'Not connected'}</span>
-            </div>
-            {device.ip && (
-              <div className="meta-item">
-                <span className="meta-label">Device IP</span>
-                <span className="meta-val">{device.ip}</span>
-              </div>
-            )}
-            <div className="meta-item">
-              <span className="meta-label">Stream Port</span>
-              <span className="meta-val">{streamPort}</span>
-            </div>
-          </div>
+        <div className="tabs-header" style={{ marginBottom: 0 }}>
+          <button className={`tab-btn ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
+             Dashboard
+          </button>
+          <button className={`tab-btn ${activeTab === 'automation' ? 'active' : ''}`} onClick={() => setActiveTab('automation')}>
+             Automation
+          </button>
+          <button className={`tab-btn ${activeTab === 'info' ? 'active' : ''}`} onClick={() => setActiveTab('info')}>
+             Info
+          </button>
         </div>
 
-        {/* Action / Future Feature Tabs */}
-        <div className="details-card" style={{ flex: 1 }}>
-          <div className="tabs-header">
-            <button className={`tab-btn ${activeTab === 'actions' ? 'active' : ''}`} onClick={() => setActiveTab('actions')}>
-              Control Panel
-            </button>
-            <button className={`tab-btn ${activeTab === 'shell' ? 'active' : ''}`} onClick={() => setActiveTab('shell')}>
-              Terminal
-            </button>
-            <button className={`tab-btn ${activeTab === 'apps' ? 'active' : ''}`} onClick={() => setActiveTab('apps')}>
-              Apps & Files
-            </button>
-          </div>
-
-          <div className="tab-content">
-            {activeTab === 'actions' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <p>Perform basic interactions and lifecycle operations on this device.</p>
-                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginTop: '4px' }}>
-                  <button className="btn btn-danger" onClick={onRelease}>Release Device</button>
-                  <button className="btn btn-ghost" onClick={() => sendControlKey(224)}>Wake Screen</button>
-                  <button className="btn btn-ghost" onClick={() => sendControlKey(3)}>Home</button>
-                  <button className="btn btn-ghost" onClick={() => sendControlKey(4)}>Back</button>
+        <div className="tab-content" style={{ flex: 1, overflowY: 'auto', paddingTop: '16px', paddingBottom: '32px' }}>
+          {activeTab === 'dashboard' && (
+            <div className="dashboard-grid">
+              
+              {/* App Upload */}
+              <div className="dashboard-card">
+                <div className="card-header">
+                  <span className="card-title" style={{ color: 'var(--text)' }}>🔖 App Upload</span>
+                  <button className="btn btn-sm btn-danger">Clear</button>
+                </div>
+                <div className="card-body">
+                  <div className="dropzone">
+                    <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>↑</span>
+                    Drop file to upload
+                  </div>
                 </div>
               </div>
-            )}
 
-            {activeTab === 'shell' && (
-              <div className="feature-placeholder">
-                <div className="feature-placeholder-icon">💻</div>
-                <h4>Interactive ADB Shell</h4>
-                <p style={{ fontSize: '12px', marginTop: '4px' }}>
-                  Execute shell commands directly on the Android device. This feature will be added in a future update.
-                </p>
+              {/* File Upload */}
+              <div className="dashboard-card">
+                <div className="card-header">
+                  <span className="card-title" style={{ color: 'var(--green)' }}>🔖 File Upload</span>
+                  <button className="btn btn-sm btn-danger">Clear</button>
+                </div>
+                <div className="card-body">
+                  <div className="dropzone">
+                    <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>↑</span>
+                    Drop file to upload
+                  </div>
+                </div>
               </div>
-            )}
 
-            {activeTab === 'apps' && (
-              <div className="feature-placeholder">
-                <div className="feature-placeholder-icon">📂</div>
-                <h4>File Manager & APK Installer</h4>
-                <p style={{ fontSize: '12px', marginTop: '4px' }}>
-                  Drag and drop APK files to install them, or browse internal storage. This feature will be added in a future update.
-                </p>
+              {/* Maintenance */}
+              <div className="dashboard-card">
+                <div className="card-header">
+                  <span className="card-title">⚙️ Maintenance</span>
+                </div>
+                <div className="card-body">
+                  <button className="btn btn-danger" style={{ width: '100%' }}>Restart Device</button>
+                </div>
               </div>
-            )}
-          </div>
+
+              {/* Navigation */}
+              <div className="dashboard-card">
+                <div className="card-header">
+                  <span className="card-title" style={{ color: 'var(--accent)' }}>🧭 Navigation</span>
+                  <button className="btn btn-sm btn-danger">Reset</button>
+                </div>
+                <div className="card-body">
+                  <div className="nav-input-row">
+                    <input type="text" className="nav-input" placeholder="http://..." />
+                    <button className="btn btn-primary">Open</button>
+                  </div>
+                  <div className="browser-icons">
+                     <button title="Chrome">🌐</button>
+                     <button title="Firefox">🦊</button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Shell */}
+              <div className="dashboard-card">
+                <div className="card-header">
+                  <span className="card-title">🖥️ Shell</span>
+                  <button className="btn btn-sm btn-danger">Clear</button>
+                </div>
+                <div className="card-body">
+                  <div className="nav-input-row">
+                    <input type="text" className="nav-input" placeholder="ls -la" />
+                    <button className="btn btn-primary">▶</button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Apps Shortcuts */}
+              <div className="dashboard-card">
+                <div className="card-header">
+                  <span className="card-title" style={{ color: 'var(--accent)' }}>📱 Apps</span>
+                </div>
+                <div className="card-body">
+                  <div className="app-grid">
+                    <button className="app-icon-btn">
+                      <span style={{ fontSize: '20px' }}>⚙️</span>
+                      Settings
+                    </button>
+                    <button className="app-icon-btn">
+                      <span style={{ fontSize: '20px' }}>🛒</span>
+                      App Store
+                    </button>
+                    <button className="app-icon-btn">
+                      <span style={{ fontSize: '20px' }}>🌐</span>
+                      Language
+                    </button>
+                    <button className="app-icon-btn">
+                      <span style={{ fontSize: '20px' }}>📶</span>
+                      Wifi
+                    </button>
+                    <button className="app-icon-btn">
+                      <span style={{ fontSize: '20px' }}>📦</span>
+                      Manage Apps
+                    </button>
+                    <button className="app-icon-btn">
+                      <span style={{ fontSize: '20px' }}>👨‍💻</span>
+                      Developer
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Advanced Input */}
+              <div className="dashboard-card">
+                <div className="card-header">
+                  <span className="card-title" style={{ color: 'var(--text)' }}>🎛️ Advanced Input</span>
+                </div>
+                <div className="card-body">
+                  <span style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '-4px' }}>Volume Control</span>
+                  <div className="volume-row" style={{ display: 'flex', gap: '8px' }}>
+                    <button className="btn btn-ghost" style={{ flex: 1 }}>Mute</button>
+                    <button className="btn btn-ghost" style={{ flex: 1 }}>Vol -</button>
+                    <button className="btn btn-ghost" style={{ flex: 1 }}>Vol +</button>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Upload File to Server */}
+              <div className="dashboard-card">
+                <div className="card-header">
+                  <span className="card-title" style={{ color: 'var(--text-link)' }}>⬆️ Upload File To Server</span>
+                </div>
+                <div className="card-body">
+                  <div className="dropzone">
+                    <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>↑</span>
+                    Drop file to upload
+                  </div>
+                  <button className="btn btn-ghost" style={{ marginTop: '8px', width: '100%' }}>Show History</button>
+                </div>
+              </div>
+
+            </div>
+          )}
+
+          {activeTab === 'automation' && (
+            <div className="feature-placeholder" style={{ marginTop: '32px' }}>
+              <div className="feature-placeholder-icon">🤖</div>
+              <h4>Automation Studio</h4>
+              <p style={{ fontSize: '12px', marginTop: '4px' }}>
+                Create and run automated test scripts on this device.
+              </p>
+            </div>
+          )}
+
+          {activeTab === 'info' && (
+            <div className="details-card">
+              <h3>📱 {device.manufacturer} {device.model}</h3>
+              <div className="meta-grid">
+                <div className="meta-item">
+                  <span className="meta-label">Serial</span>
+                  <span className="meta-val" style={{ fontFamily: 'monospace' }}>{device.serial}</span>
+                </div>
+                <div className="meta-item">
+                  <span className="meta-label">OS Version</span>
+                  <span className="meta-val">Android {device.android} (SDK {device.sdk})</span>
+                </div>
+                <div className="meta-item">
+                  <span className="meta-label">CPU ABI</span>
+                  <span className="meta-val">{device.abi || 'Unknown'}</span>
+                </div>
+                <div className="meta-item">
+                  <span className="meta-label">Resolution</span>
+                  <span className="meta-val">{device.display || 'Unknown'}</span>
+                </div>
+                <div className="meta-item">
+                  <span className="meta-label">Battery</span>
+                  <span className="meta-val">{device.battery}%</span>
+                </div>
+                <div className="meta-item">
+                  <span className="meta-label">WiFi</span>
+                  <span className="meta-val">{device.wifi_ssid || 'Not connected'}</span>
+                </div>
+                {device.ip && (
+                  <div className="meta-item">
+                    <span className="meta-label">Device IP</span>
+                    <span className="meta-val">{device.ip}</span>
+                  </div>
+                )}
+                <div className="meta-item">
+                  <span className="meta-label">Stream Port</span>
+                  <span className="meta-val">{streamPort}</span>
+                </div>
+              </div>
+              <div style={{ marginTop: '24px', borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
+                <button className="btn btn-danger" onClick={onRelease}>Release Device</button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

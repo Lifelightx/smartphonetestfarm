@@ -8,12 +8,12 @@
 provider:
   name: "lab-provider-01"
   host: "provider-host.local"
-  ip: ""          # leave empty for auto-detection (Phase 4)
+  ip: "127.0.0.1"          # leave empty for auto-detection (Phase 4)
   min_port: 7400
   max_port: 7700
 
 coordinator:
-  address: "192.168.13.73:9000"
+  address: "127.0.0.1:9000"
   tls:
     enabled: false           # set true in production; requires certs below
     ca_cert:     "/etc/stf/certs/ca.crt"
