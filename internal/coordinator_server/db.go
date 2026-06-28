@@ -191,7 +191,13 @@ func (d *DB) CloseSession(serial string) error {
 	}
 	defer tx.Rollback()
 
-	_, err = tx.Exec("UPDATE devices SET status = 'idle', stream_port = 0, updated_at = NOW() WHERE serial = $1", serial)
+	_, err = tx.Exec(`
+		UPDATE devices
+		SET status = CASE WHEN status = 'offline' THEN 'offline' ELSE 'idle' END,
+		    stream_port = 0,
+		    updated_at = NOW()
+		WHERE serial = $1
+	`, serial)
 	if err != nil {
 		return err
 	}

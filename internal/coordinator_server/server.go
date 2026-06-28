@@ -183,6 +183,8 @@ func (s *Server) ReleaseDevice(ctx context.Context, req *pb.ReleaseDeviceRequest
 		return &pb.ReleaseDeviceResponse{Ok: false}, nil
 	}
 
+	s.broadcastFullList()
+
 	return &pb.ReleaseDeviceResponse{Ok: true}, nil
 }
 
@@ -235,6 +237,7 @@ func (s *Server) Heartbeat(stream pb.CoordinatorService_HeartbeatServer) error {
 		// Mark all devices of this provider as offline
 		slog.Info("coordinator: heartbeat stream lost, marking provider devices offline", "provider", providerID)
 		_, _ = s.db.db.Exec("UPDATE devices SET status = 'offline' WHERE provider_ip = $1", providerID)
+		s.broadcastFullList()
 	}()
 
 	// Handle initial ping snapshot

@@ -54,10 +54,15 @@ export function useDevicesWS() {
               break;
             case 'DEVICE_RELEASED':
               console.log('Device released:', payload.data);
-              // Optimistically update device list
+              // Do not blindly force idle here. A disconnect can race with release,
+              // and the backend may already have transitioned the device to offline.
               setDevices(prev => prev.map(d => 
                 d.serial === payload.data.serial 
-                  ? { ...d, status: 'idle', stream_port: 0 }
+                  ? {
+                      ...d,
+                      status: payload.data.status || (d.status === 'offline' ? 'offline' : 'idle'),
+                      stream_port: 0,
+                    }
                   : d
               ));
               break;

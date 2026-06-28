@@ -108,7 +108,7 @@ function InfoTab({ device, streamPort, onRelease }) {
             </div>
             <div>
               <h3>{device.manufacturer} {device.model}</h3>
-              <p>Device details grouped into cleaner cards for faster scanning.</p>
+              <p>Device details</p>
             </div>
           </div>
         </div>
