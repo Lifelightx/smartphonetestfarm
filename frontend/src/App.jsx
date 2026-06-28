@@ -3,7 +3,9 @@ import Header from './components/Header';
 import StatsBar from './components/StatsBar';
 import DeviceCard from './components/DeviceCard';
 import DevicePage from './components/DevicePage';
+import DeviceDetailsTable from './components/DeviceDetailsTable';
 import { useDevicesWS } from './hooks/useDevicesWS';
+import './App.css';
 
 // Coordinator's API address (usually GRPCPort + 2, e.g. 9002)
 const COORDINATOR_API = import.meta.env.VITE_COORDINATOR_API || `${window.location.protocol}//${window.location.hostname}:9002`;
@@ -12,6 +14,7 @@ function App() {
   const { devices, loading: wsLoading, wsError, setDevices } = useDevicesWS();
   const [loading, setLoading] = useState(false);
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
+  const [activeTab, setActiveTab] = useState('device');
   const [toasts, setToasts] = useState([]);
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
 
@@ -224,42 +227,65 @@ function App() {
           <>
             <StatsBar devices={devices} />
 
-            <div className="toolbar">
-              <h2>Connected Devices</h2>
-              <button className="btn btn-ghost" onClick={fetchDevices} disabled={loading || wsLoading}>
-                {loading || wsLoading ? <span className="spinner"></span> : 'Refresh'}
+             {/* <div className="toolbar">
+               <h2>Connected Devices</h2>
+               
+             </div> */}
+ 
+             <div className="device-dashboard-tabs">
+              <button 
+                className={`tab-nav-btn ${activeTab === 'device' ? 'active' : ''}`} 
+                onClick={() => setActiveTab('device')}
+              >
+                Devices
+              </button>
+              <button 
+                className={`tab-nav-btn ${activeTab === 'details' ? 'active' : ''}`} 
+                onClick={() => setActiveTab('details')}
+              >
+                Details
               </button>
             </div>
 
-             <div className="device-grid">
-              {orderedDevices.length === 0 ? (
-                <div className="empty">
-                  <div className="empty-icon">
-                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ margin: '0 auto 12px auto', display: 'block', color: 'var(--text-muted)' }}>
-                      <rect x="5" y="2" width="14" height="20" rx="2.5" ry="2.5" />
-                      <line x1="12" y1="18" x2="12.01" y2="18" strokeWidth="2.5" />
-                    </svg>
+            {activeTab === 'device' ? (
+              <div className="device-grid">
+                {orderedDevices.length === 0 ? (
+                  <div className="empty">
+                    <div className="empty-icon">
+                      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ margin: '0 auto 12px auto', display: 'block', color: 'var(--text-muted)' }}>
+                        <rect x="5" y="2" width="14" height="20" rx="2.5" ry="2.5" />
+                        <line x1="12" y1="18" x2="12.01" y2="18" strokeWidth="2.5" />
+                      </svg>
+                    </div>
+                    <h3>No Devices Detected</h3>
+                    <p>Ensure adb is running and your Android devices are connected.</p>
                   </div>
-                  <h3>No Devices Detected</h3>
-                  <p>Ensure adb is running and your Android devices are connected.</p>
-                </div>
-              ) : (
-                orderedDevices.map((device, index) => (
-                  <DeviceCard
-                    key={device.serial}
-                    device={device}
-                    onClaim={handleClaim}
-                    onViewStream={(serial) => navigate(`/device/${serial}`)}
-                    onRelease={handleRelease}
-                    draggable={true}
-                    onDragStart={(e) => handleDragStart(e, index)}
-                    onDragOver={(e) => handleDragOver(e, index)}
-                    onDragEnd={handleDragEnd}
-                    isDragging={draggedIndex === index}
-                  />
-                ))
-              )}
-            </div>
+                ) : (
+                  orderedDevices.map((device, index) => (
+                    <DeviceCard
+                      key={device.serial}
+                      device={device}
+                      onClaim={handleClaim}
+                      onViewStream={(serial) => navigate(`/device/${serial}`)}
+                      onRelease={handleRelease}
+                      draggable={true}
+                      onDragStart={(e) => handleDragStart(e, index)}
+                      onDragOver={(e) => handleDragOver(e, index)}
+                      onDragEnd={handleDragEnd}
+                      isDragging={draggedIndex === index}
+                    />
+                  ))
+                )}
+              </div>
+            ) : (
+              <DeviceDetailsTable 
+                devices={orderedDevices} 
+                onClaim={handleClaim} 
+                onViewStream={(serial) => navigate(`/device/${serial}`)} 
+                onRelease={handleRelease} 
+              />
+            )}
+
           </>
         )}
       </main>
