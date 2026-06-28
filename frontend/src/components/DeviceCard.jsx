@@ -33,7 +33,7 @@ function DeviceCard({
     if (status === 'idle') {
       onClaim(device);
     } else if (status === 'claimed' || status === 'busy') {
-      onRelease(device.serial);
+      onViewStream(device.serial)
     } else if (status === 'offline') {
       return;
     }
