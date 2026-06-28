@@ -14,6 +14,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -152,6 +153,39 @@ func (c *Client) RegisterDevice(ctx context.Context, d *domain.Device) error {
 
 	slog.Info("coordinator: device registered", "serial", d.Serial)
 	c.addSerial(d.Serial)
+	return nil
+}
+
+// UpdateDeviceState pushes dynamic state updates (battery, network, fs) to the coordinator.
+func (c *Client) UpdateDeviceState(ctx context.Context, d *domain.Device) error {
+	callCtx, cancel := context.WithTimeout(ctx, c.cfg.CallTimeout)
+	defer cancel()
+
+	var fsJSON, brJSON []byte
+	if d.State.FileSystem.Root != "" {
+		fsJSON, _ = json.Marshal(d.State.FileSystem)
+	}
+	if d.State.InstalledBrowsers != nil {
+		brJSON, _ = json.Marshal(d.State.InstalledBrowsers)
+	}
+
+	req := &pb.UpdateDeviceStateRequest{
+		ProviderId:            c.providerID,
+		Serial:                d.Serial,
+		Battery:               int32(d.State.Battery.Level),
+		WifiSsid:              d.State.Network.WiFiSSID,
+		FileSystemJson:        string(fsJSON),
+		InstalledBrowsersJson: string(brJSON),
+	}
+
+	resp, err := c.stub.UpdateDeviceState(callCtx, req)
+	if err != nil {
+		return fmt.Errorf("coordinator: UpdateDeviceState %s: %w", d.Serial, grpcErr(err))
+	}
+	if !resp.Success {
+		return fmt.Errorf("coordinator: UpdateDeviceState %s rejected: %s", d.Serial, resp.Message)
+	}
+
 	return nil
 }
 

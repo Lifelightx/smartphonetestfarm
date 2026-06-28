@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"protean-provider/internal/config"
+	"protean-provider/internal/domain"
 )
 
 const scrcpyServerVersion = "4.0"
@@ -23,16 +24,18 @@ const scrcpyServerVersion = "4.0"
 // Manager implements domain.StreamManager.
 // It starts the scrcpy-server on-device, reads raw H.264, and broadcasts to clients.
 type Manager struct {
-	cfg     *config.Config
-	mu      sync.Mutex
-	streams map[string]*streamState
+	cfg      *config.Config
+	registry domain.DeviceRegistry
+	mu       sync.Mutex
+	streams  map[string]*streamState
 }
 
 // NewManager creates a new stream Manager.
-func NewManager(cfg *config.Config) *Manager {
+func NewManager(cfg *config.Config, registry domain.DeviceRegistry) *Manager {
 	return &Manager{
-		cfg:     cfg,
-		streams: make(map[string]*streamState),
+		cfg:      cfg,
+		registry: registry,
+		streams:  make(map[string]*streamState),
 	}
 }
 
@@ -198,6 +201,9 @@ func (m *Manager) StartCapture(ctx context.Context, serial string, port int) err
 	})
 	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		m.handleWS(w, r, serial)
+	})
+	mux.HandleFunc("/state", func(w http.ResponseWriter, r *http.Request) {
+		m.handleState(w, r, serial)
 	})
 	httpServer := &http.Server{Addr: fmt.Sprintf(":%d", port), Handler: mux}
 

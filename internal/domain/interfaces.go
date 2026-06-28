@@ -37,6 +37,7 @@ type CoordinatorClient interface {
 	Connect(ctx context.Context) error
 	RegisterProvider(ctx context.Context, p *Provider) error
 	RegisterDevice(ctx context.Context, d *Device) error
+	UpdateDeviceState(ctx context.Context, d *Device) error
 	SendHeartbeat(ctx context.Context, serial string) error
 	ReleaseDevice(ctx context.Context, serial string) error
 	Disconnect(ctx context.Context) error

@@ -19,6 +19,7 @@ type ControlEvent struct {
 	Button    int     `json:"button"`
 	Buttons   int     `json:"buttons"`
 	PointerID int64   `json:"pointerId"`
+	Path      string  `json:"path,omitempty"`
 }
 
 // SerializeControlEvent encodes a ControlEvent into raw scrcpy binary protocol messages.

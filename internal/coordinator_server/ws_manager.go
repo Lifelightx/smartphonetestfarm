@@ -34,31 +34,17 @@ func NewWSManager() *WSManager {
 	}
 }
 
-// HandleWS upgrades HTTP connection to WebSocket and manages client lifecycle
-func (m *WSManager) HandleWS(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		slog.Error("coordinator: failed to upgrade to websocket", "err", err)
-		return
-	}
-
+func (m *WSManager) AddClient(conn *websocket.Conn) {
 	m.mu.Lock()
 	m.clients[conn] = true
 	m.mu.Unlock()
+}
 
-	defer func() {
-		m.mu.Lock()
-		delete(m.clients, conn)
-		m.mu.Unlock()
-		conn.Close()
-	}()
-
-	// Keep connection alive and detect client disconnects
-	for {
-		if _, _, err := conn.ReadMessage(); err != nil {
-			break
-		}
-	}
+func (m *WSManager) RemoveClient(conn *websocket.Conn) {
+	m.mu.Lock()
+	delete(m.clients, conn)
+	m.mu.Unlock()
+	conn.Close()
 }
 
 // Broadcast sends a typed event to all connected WebSocket clients

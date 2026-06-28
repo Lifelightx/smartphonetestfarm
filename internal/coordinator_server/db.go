@@ -73,6 +73,8 @@ func (d *DB) migrate() error {
 			status TEXT NOT NULL DEFAULT 'active'
 		);`,
 		`ALTER TABLE devices ADD COLUMN IF NOT EXISTS stream_port INT NOT NULL DEFAULT 0;`,
+		`ALTER TABLE devices ADD COLUMN IF NOT EXISTS file_system JSON;`,
+		`ALTER TABLE devices ADD COLUMN IF NOT EXISTS installed_browsers JSON;`,
 	}
 
 	for _, q := range queries {
@@ -137,6 +139,19 @@ func (d *DB) ReleaseDevice(serial string) error {
 func (d *DB) UpdateDeviceHeartbeat(serial string) error {
 	query := `UPDATE devices SET status = CASE WHEN status = 'offline' THEN 'idle' ELSE status END, updated_at = NOW() WHERE serial = $1`
 	_, err := d.db.Exec(query, serial)
+	return err
+}
+
+func (d *DB) UpdateDeviceState(serial string, battery int, wifi, fileSystemJSON, installedBrowsersJSON string) error {
+	query := `
+		UPDATE devices SET
+			battery = $2,
+			wifi_ssid = $3,
+			file_system = CASE WHEN $4 = '' THEN file_system ELSE CAST($4 AS JSON) END,
+			installed_browsers = CASE WHEN $5 = '' THEN installed_browsers ELSE CAST($5 AS JSON) END,
+			updated_at = NOW()
+		WHERE serial = $1`
+	_, err := d.db.Exec(query, serial, battery, wifi, fileSystemJSON, installedBrowsersJSON)
 	return err
 }
 

@@ -23,6 +23,9 @@ service CoordinatorService {
   // Heartbeat is a bi-directional streaming RPC.
   // Provider sends periodic pings; coordinator may push commands back.
   rpc Heartbeat(stream HeartbeatPing) returns (stream HeartbeatPong);
+
+  // UpdateDeviceState allows the provider to dynamically push telemetry updates (battery, network, file system, browsers).
+  rpc UpdateDeviceState(UpdateDeviceStateRequest) returns (UpdateDeviceStateResponse);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -80,6 +83,23 @@ message ReleaseDeviceRequest {
 
 message ReleaseDeviceResponse {
   bool   ok            = 1;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// UpdateDeviceState
+// ─────────────────────────────────────────────────────────────────────────────
+message UpdateDeviceStateRequest {
+  string provider_id   = 1;
+  string serial        = 2;
+  int32  battery       = 3;
+  string wifi_ssid     = 4;
+  string file_system_json = 5;
+  string installed_browsers_json = 6;
+}
+
+message UpdateDeviceStateResponse {
+  bool   success       = 1;
+  string message       = 2;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

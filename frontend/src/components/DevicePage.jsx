@@ -1,5 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { AlertTriangle, Camera, ChevronLeft, Circle, FileText, Power, RotateCw, Square, WandSparkles } from 'lucide-react';
 import './DevicePage.css';
+import DashboardTab from './device-page/DashboardTab';
+import DeviceTabsHeader from './device-page/DeviceTabsHeader';
+import FilesTab from './device-page/FilesTab';
+import InfoTab from './device-page/InfoTab';
+import PlaceholderTab from './device-page/PlaceholderTab';
 function DevicePage({ device, onBack, onRelease }) {
   const canvasRef = useRef(null);
   const wsRef = useRef(null);
@@ -256,8 +262,27 @@ function DevicePage({ device, onBack, onRelease }) {
   const wsUrl = device.provider_id && streamPort
     ? `ws://${device.provider_id}:${streamPort}/ws`
     : null;
+  const stateUrl = device.provider_id && streamPort
+    ? `http://${device.provider_id}:${streamPort}/state`
+    : null;
+
+  // We no longer poll stateUrl because state is delivered via websocket (DEVICE_LIST_UPDATE)
+
 
   // ── Input event handlers ────────────────────────────────────────────────────
+
+  const handleFolderClick = (path) => {
+    execShell(`am broadcast -a com.protean.agent.COMMAND -e command "LIST_DIRECTORY" -e path "${path}"`);
+  };
+
+  const handleBackClick = (currentPath) => {
+    if (!currentPath) return;
+    const parts = currentPath.split('/');
+    if (parts.length <= 2) return; // e.g. ["", "storage"] -> can't go higher
+    parts.pop();
+    const parentPath = parts.join('/');
+    handleFolderClick(parentPath);
+  };
 
   const sendTouchEvent = (action, normX, normY, button = 0, buttons = 1, pressure = 1.0, pointerId = 0) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
@@ -616,191 +641,6 @@ function DevicePage({ device, onBack, onRelease }) {
     ? { width: '100%', maxWidth: '820px', aspectRatio: currentAspectRatio }
     : { height: '100%', maxHeight: 'min(680px, 78vh)', aspectRatio: currentAspectRatio };
 
-  const handleResize = (e) => {
-    const w = e.target.videoWidth;
-    const h = e.target.videoHeight;
-    if (w && h) { setVideoWidth(w); setVideoHeight(h); setRotation(w > h ? 90 : 0); }
-  };
-
-  const renderCard = (id, index) => {
-    const isDragging = draggedCardIndex === index;
-    const dragProps = {
-      draggable: true,
-      onDragStart: (e) => handleCardDragStart(e, index),
-      onDragOver: (e) => handleCardDragOver(e, index),
-      onDragEnd: handleCardDragEnd,
-      style: {
-        cursor: isDragging ? 'grabbing' : 'grab',
-        opacity: isDragging ? 0.35 : 1,
-        transform: isDragging ? 'scale(0.98)' : 'none',
-        border: isDragging ? '2px dashed var(--accent)' : ''
-      }
-    };
-    
-    switch (id) {
-      case 'app_upload': return (
-              <div key="app_upload" className="dashboard-card" {...dragProps}>
-                <div className="card-header">
-                  <span className="card-title" style={{ color: 'var(--text)' }}>🔖 App Upload</span>
-                </div>
-                <div className="card-body">
-                  {uploadProgress.active && uploadProgress.type === 'app' ? (
-                    <div className="upload-progress-container">
-                      <div className="upload-progress-info">
-                        <span className="upload-progress-message">{uploadProgress.message}</span>
-                        <span className="upload-progress-percent">{uploadProgress.percent}%</span>
-                      </div>
-                      <div className="upload-progress-bar-bg">
-                        <div 
-                          className={`upload-progress-bar-fill ${uploadProgress.stage}`} 
-                          style={{ width: `${uploadProgress.percent}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="dropzone" onClick={() => handleDropzoneClick('app')} onDrop={(e) => handleDrop(e, 'app')} onDragOver={handleDragOver} style={{ cursor: 'pointer' }}>
-                      <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>↑</span>
-                      Click or drop APK to install
-                    </div>
-                  )}
-                </div>
-              </div>
-      );
-      case 'file_upload': return (
-              <div key="file_upload" className="dashboard-card" {...dragProps}>
-                <div className="card-header">
-                  <span className="card-title" style={{ color: 'var(--green)' }}>🔖 File Upload</span>
-                </div>
-                <div className="card-body">
-                  {uploadProgress.active && uploadProgress.type === 'file' ? (
-                    <div className="upload-progress-container">
-                      <div className="upload-progress-info">
-                        <span className="upload-progress-message">{uploadProgress.message}</span>
-                        <span className="upload-progress-percent">{uploadProgress.percent}%</span>
-                      </div>
-                      <div className="upload-progress-bar-bg">
-                        <div 
-                          className={`upload-progress-bar-fill ${uploadProgress.stage}`} 
-                          style={{ width: `${uploadProgress.percent}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="dropzone" onClick={() => handleDropzoneClick('file')} onDrop={(e) => handleDrop(e, 'file')} onDragOver={handleDragOver} style={{ cursor: 'pointer' }}>
-                      <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>↑</span>
-                      Click or drop file to upload
-                    </div>
-                  )}
-                </div>
-              </div>
-      );
-      case 'maintenance': return (
-              <div key="maintenance" className="dashboard-card" {...dragProps}>
-                <div className="card-header">
-                  <span className="card-title">⚙️ Maintenance</span>
-                </div>
-                <div className="card-body">
-                  <button className="btn btn-danger" style={{ width: '100%' }} onClick={() => execShell('reboot')}>Restart Device</button>
-                </div>
-              </div>
-      );
-      case 'navigation': return (
-              <div key="navigation" className="dashboard-card" {...dragProps}>
-                <div className="card-header">
-                  <span className="card-title" style={{ color: 'var(--accent)' }}>🧭 Navigation</span>
-                  <button className="btn btn-sm btn-danger" onClick={() => setNavUrl('')}>Reset</button>
-                </div>
-                <div className="card-body">
-                  <div className="nav-input-row">
-                    <input type="text" className="nav-input" placeholder="http://..." value={navUrl} onChange={(e) => setNavUrl(e.target.value)} onKeyDown={(e) => { if(e.key === 'Enter' && navUrl) execShell(`am start -a android.intent.action.VIEW -d "${navUrl}"`) }} />
-                    <button className="btn btn-primary" onClick={() => { if(navUrl) execShell(`am start -a android.intent.action.VIEW -d "${navUrl}"`) }}>Open</button>
-                  </div>
-                  <div className="browser-icons">
-                     <button title="Chrome" onClick={() => execShell(`am start -n com.android.chrome/com.google.android.apps.chrome.Main -d "${navUrl || 'https://google.com'}"`)}>🌐</button>
-                     <button title="Firefox" onClick={() => execShell(`am start -n org.mozilla.firefox/.App -d "${navUrl || 'https://google.com'}"`)}>🦊</button>
-                  </div>
-                </div>
-              </div>
-      );
-      case 'shell': return (
-              <div key="shell" className="dashboard-card" {...dragProps}>
-                <div className="card-header">
-                  <span className="card-title">🖥️ Shell</span>
-                  <button className="btn btn-sm btn-danger" onClick={() => setShellCmd('')}>Clear</button>
-                </div>
-                <div className="card-body">
-                  <div className="nav-input-row">
-                    <input type="text" className="nav-input" placeholder="ls -la" value={shellCmd} onChange={(e) => setShellCmd(e.target.value)} onKeyDown={(e) => { if(e.key === 'Enter' && shellCmd) execShell(shellCmd).then(r => { if(r.message) alert(r.message) }) }} />
-                    <button className="btn btn-primary" onClick={() => { if(shellCmd) execShell(shellCmd).then(r => { if(r.message) alert(r.message) }) }}>▶</button>
-                  </div>
-                </div>
-              </div>
-      );
-      case 'apps': return (
-              <div key="apps" className="dashboard-card" {...dragProps}>
-                <div className="card-header">
-                  <span className="card-title" style={{ color: 'var(--accent)' }}>📱 Apps</span>
-                </div>
-                <div className="card-body">
-                  <div className="app-grid">
-                    <button className="app-icon-btn" onClick={() => execShell('am start -a android.settings.SETTINGS')}><span style={{ fontSize: '20px' }}>⚙️</span>Settings</button>
-                    <button className="app-icon-btn" onClick={() => execShell('am start -a android.intent.action.VIEW -d "market://details?id=com.android.chrome"')}><span style={{ fontSize: '20px' }}>🛒</span>App Store</button>
-                    <button className="app-icon-btn" onClick={() => execShell('am start -a android.settings.LOCALE_SETTINGS')}><span style={{ fontSize: '20px' }}>🌐</span>Language</button>
-                    <button className="app-icon-btn" onClick={() => execShell('am start -a android.settings.WIFI_SETTINGS')}><span style={{ fontSize: '20px' }}>📶</span>Wifi</button>
-                    <button className="app-icon-btn" onClick={() => execShell('am start -a android.settings.MANAGE_APPLICATIONS_SETTINGS')}><span style={{ fontSize: '20px' }}>📦</span>Manage Apps</button>
-                    <button className="app-icon-btn" onClick={() => execShell('am start -a android.settings.APPLICATION_DEVELOPMENT_SETTINGS')}><span style={{ fontSize: '20px' }}>👨‍💻</span>Developer</button>
-                  </div>
-                </div>
-              </div>
-      );
-      case 'advanced_input': return (
-              <div key="advanced_input" className="dashboard-card" {...dragProps}>
-                <div className="card-header">
-                  <span className="card-title" style={{ color: 'var(--text)' }}>🎛️ Advanced Input</span>
-                </div>
-                <div className="card-body">
-                  <span style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '-4px' }}>Volume Control</span>
-                  <div className="volume-row" style={{ display: 'flex', gap: '8px' }}>
-                    <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => sendControlKey(164)}>Mute</button>
-                    <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => sendControlKey(25)}>Vol -</button>
-                    <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => sendControlKey(24)}>Vol +</button>
-                  </div>
-                </div>
-              </div>
-      );
-      case 'upload_server': return (
-              <div key="upload_server" className="dashboard-card" {...dragProps}>
-                <div className="card-header">
-                  <span className="card-title" style={{ color: 'var(--text-link)' }}>⬆️ Upload File To Server</span>
-                </div>
-                <div className="card-body">
-                  {uploadProgress.active && uploadProgress.type === 'server' ? (
-                    <div className="upload-progress-container" style={{ marginBottom: '8px' }}>
-                      <div className="upload-progress-info">
-                        <span className="upload-progress-message">{uploadProgress.message}</span>
-                        <span className="upload-progress-percent">{uploadProgress.percent}%</span>
-                      </div>
-                      <div className="upload-progress-bar-bg">
-                        <div 
-                          className={`upload-progress-bar-fill ${uploadProgress.stage}`} 
-                          style={{ width: `${uploadProgress.percent}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="dropzone" onClick={() => handleDropzoneClick('server')} onDrop={(e) => handleDrop(e, 'server')} onDragOver={handleDragOver} style={{ cursor: 'pointer' }}>
-                      <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>↑</span>
-                      Click or drop file to save on server
-                    </div>
-                  )}
-                  <button className="btn btn-ghost" style={{ marginTop: '8px', width: '100%' }} onClick={() => alert('No history available yet.')}>Show History</button>
-                </div>
-              </div>
-      );
-      default: return null;
-    }
-  };
-
   if (device.model === 'Loading...') {
     return (
       <div className="device-page" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '80vh', gap: '1.5rem' }}>
@@ -820,11 +660,11 @@ function DevicePage({ device, onBack, onRelease }) {
           {/* Vertical controls on the LEFT of the phone */}
           <div className="side-controls side-controls-left">
             <button className="side-btn" title="Rotate" onClick={() => setRotation(r => r === 0 ? 90 : 0)}>
-              <span>⟳</span>
+              <RotateCw size={20} />
               <label>Rotate</label>
             </button>
             <button className="side-btn" title="Power / Wake" onClick={() => sendControlKey(224)}>
-              <span>⏻</span>
+              <Power size={20} />
               <label>Wake</label>
             </button>
           </div>
@@ -835,9 +675,9 @@ function DevicePage({ device, onBack, onRelease }) {
               <div className="phone-screen" style={screenStyle}>
                 {/* Error overlay */}
                 {errorMsg && (
-                  <div className="phone-placeholder" style={{ color: 'var(--red)' }}>
-                    <div style={{ fontSize: '28px' }}>⚠️</div>
-                    <div style={{ marginTop: '10px', fontSize: '13px', textAlign: 'center', padding: '0 16px' }}>{errorMsg}</div>
+                  <div className="phone-placeholder error">
+                    <AlertTriangle size={28} />
+                    <div className="phone-placeholder-message">{errorMsg}</div>
                   </div>
                 )}
                 {/* Loading overlay — sits on top of the video (position:absolute z-index:10)
@@ -880,15 +720,15 @@ function DevicePage({ device, onBack, onRelease }) {
           {/* Vertical controls on the RIGHT of the phone (Android nav) */}
           <div className="side-controls side-controls-right">
             <button className="side-btn" title="Home" onClick={() => sendControlKey(3)}>
-              <span>◯</span>
+              <Circle size={20} />
               <label>Home</label>
             </button>
             <button className="side-btn" title="Back" onClick={() => sendControlKey(4)}>
-              <span>◁</span>
+              <ChevronLeft size={20} />
               <label>Back</label>
             </button>
             <button className="side-btn" title="Recents" onClick={() => sendControlKey(187)}>
-              <span>▣</span>
+              <Square size={20} />
               <label>Recent</label>
             </button>
           </div>
@@ -897,110 +737,67 @@ function DevicePage({ device, onBack, onRelease }) {
 
       {/* ── RIGHT: Control & Overview Tabs ──────────────────────────── */}
       <div className="details-column">
-        <div className="back-header">
-          <button className="btn btn-ghost" onClick={onBack}>
-            ← Dashboard
-          </button>
-          <span className="status-pill status-claimed" style={{ marginLeft: '0' }}>
-            {device.model}
-          </span>
-        </div>
+        <DeviceTabsHeader
+          deviceModel={device.model}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          onBack={onBack}
+        />
 
-        <div className="tabs-header" style={{ marginBottom: 0 }}>
-          <button className={`tab-btn ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
-             Dashboard
-          </button>
-          <button className={`tab-btn ${activeTab === 'automation' ? 'active' : ''}`} onClick={() => setActiveTab('automation')}>
-             Automation
-          </button>
-          <button className={`tab-btn ${activeTab === 'info' ? 'active' : ''}`} onClick={() => setActiveTab('info')}>
-             Info
-          </button>
-        </div>
-
-        <div className="tab-content" style={{ flex: 1, overflowY: 'auto', paddingTop: '16px', paddingBottom: '32px' }}>
+        <div className="tab-content">
           {activeTab === 'dashboard' && (
-            <div className="dashboard-grid">
-              {cardOrder.map((id, index) => renderCard(id, index))}
-            </div>
+            <DashboardTab
+              cardOrder={cardOrder}
+              draggedCardIndex={draggedCardIndex}
+              onCardDragStart={handleCardDragStart}
+              onCardDragOver={handleCardDragOver}
+              onCardDragEnd={handleCardDragEnd}
+              uploadProgress={uploadProgress}
+              onDropzoneClick={handleDropzoneClick}
+              onDrop={handleDrop}
+              onDragOver={handleDragOver}
+              navUrl={navUrl}
+              setNavUrl={setNavUrl}
+              execShell={execShell}
+              shellCmd={shellCmd}
+              setShellCmd={setShellCmd}
+              sendControlKey={sendControlKey}
+            />
           )}
 
           {activeTab === 'automation' && (
-            <div className="feature-placeholder" style={{ marginTop: '32px' }}>
-              <div className="feature-placeholder-icon">🤖</div>
-              <h4>Automation Studio</h4>
-              <p style={{ fontSize: '12px', marginTop: '4px' }}>
-                Create and run automated test scripts on this device.
-              </p>
-            </div>
+            <PlaceholderTab
+              icon={WandSparkles}
+              title="Automation Studio"
+              description="Create and run automated test scripts on this device."
+              colorClass="color-cyan"
+            />
+          )}
+
+          {activeTab === 'media' && (
+            <PlaceholderTab
+              icon={Camera}
+              title="Media Gallery"
+              description="View screenshots and screen recordings from this device."
+              colorClass="color-blue"
+            />
+          )}
+
+          {activeTab === 'logs' && (
+            <PlaceholderTab
+              icon={FileText}
+              title="Logs & PT"
+              description="View Logcat logs and PT parameters of the device."
+              colorClass="color-emerald"
+            />
+          )}
+
+          {activeTab === 'files' && (
+            <FilesTab device={device} onFolderClick={handleFolderClick} onBackClick={handleBackClick} />
           )}
 
           {activeTab === 'info' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              <div className="details-card">
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
-                  <h3 style={{ margin: 0 }}> {device.manufacturer} {device.model}</h3>
-                </div>
-                
-                <h4 style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '12px', letterSpacing: '0.05em' }}>Hardware Specifications</h4>
-                <div className="meta-grid">
-                  <div className="meta-item">
-                    <span className="meta-label">Serial</span>
-                    <span className="meta-val" style={{ fontFamily: 'monospace' }}>{device.serial}</span>
-                  </div>
-                  <div className="meta-item">
-                    <span className="meta-label">OS Version</span>
-                    <span className="meta-val">Android {device.android} (SDK {device.sdk})</span>
-                  </div>
-                  <div className="meta-item">
-                    <span className="meta-label">CPU ABI</span>
-                    <span className="meta-val">{device.abi || 'Unknown'}</span>
-                  </div>
-                  <div className="meta-item">
-                    <span className="meta-label">Resolution</span>
-                    <span className="meta-val">{device.display || 'Unknown'}</span>
-                  </div>
-                  <div className="meta-item">
-                    <span className="meta-label">Memory (RAM)</span>
-                    <span className="meta-val">{device.ram_mb ? `${(device.ram_mb / 1024).toFixed(1)} GB` : 'Unknown'}</span>
-                  </div>
-                  <div className="meta-item">
-                    <span className="meta-label">Storage</span>
-                    <span className="meta-val">{device.storage_mb ? `${(device.storage_mb / 1024).toFixed(1)} GB` : 'Unknown'}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="details-card">
-                <h4 style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '12px', letterSpacing: '0.05em' }}>Network & Status</h4>
-                <div className="meta-grid">
-                  <div className="meta-item">
-                    <span className="meta-label">Battery</span>
-                    <span className="meta-val">{device.battery}%</span>
-                  </div>
-                  <div className="meta-item">
-                    <span className="meta-label">WiFi</span>
-                    <span className="meta-val">{device.wifi_ssid || 'Not connected'}</span>
-                  </div>
-                  <div className="meta-item">
-                    <span className="meta-label">Device IP</span>
-                    <span className="meta-val">{device.ip || 'Unknown'}</span>
-                  </div>
-                  <div className="meta-item">
-                    <span className="meta-label">Provider IP</span>
-                    <span className="meta-val">{device.provider_id || 'Unknown'}</span>
-                  </div>
-                  <div className="meta-item">
-                    <span className="meta-label">Stream Port</span>
-                    <span className="meta-val">{streamPort}</span>
-                  </div>
-                </div>
-              </div>
-              
-              <div style={{ paddingTop: '8px' }}>
-                <button className="btn btn-danger" onClick={onRelease} style={{ width: '100%', padding: '12px' }}>Release Device</button>
-              </div>
-            </div>
+            <InfoTab device={device} streamPort={streamPort} onRelease={onRelease} />
           )}
         </div>
       </div>

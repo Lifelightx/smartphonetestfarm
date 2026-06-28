@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -67,7 +68,7 @@ func (s *Server) Start() error {
 	httpPort := s.cfg.GRPCPort + 2
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v1/devices", s.handleListDevices)
-	mux.HandleFunc("/api/v1/devices/ws", s.wsManager.HandleWS)
+	mux.HandleFunc("/api/v1/devices/ws", s.handleWS)
 	mux.HandleFunc("/api/v1/devices/", s.handleDeviceAction)
 
 	s.httpServer = &http.Server{
@@ -82,7 +83,7 @@ func (s *Server) Start() error {
 		}
 	}()
 
-	go s.deviceListBroadcastLoop()
+	// No more 2-second broadcast loop
 
 	return nil
 }
@@ -166,6 +167,10 @@ func (s *Server) RegisterDevice(ctx context.Context, req *pb.RegisterDeviceReque
 		return &pb.RegisterDeviceResponse{Accepted: false, Message: err.Error()}, nil
 	}
 
+	if err == nil {
+		s.broadcastFullList()
+	}
+
 	return &pb.RegisterDeviceResponse{Accepted: true, Message: "Device registered"}, nil
 }
 
@@ -179,6 +184,25 @@ func (s *Server) ReleaseDevice(ctx context.Context, req *pb.ReleaseDeviceRequest
 	}
 
 	return &pb.ReleaseDeviceResponse{Ok: true}, nil
+}
+
+func (s *Server) UpdateDeviceState(ctx context.Context, req *pb.UpdateDeviceStateRequest) (*pb.UpdateDeviceStateResponse, error) {
+	err := s.db.UpdateDeviceState(
+		req.Serial,
+		int(req.Battery),
+		req.WifiSsid,
+		req.FileSystemJson,
+		req.InstalledBrowsersJson,
+	)
+	if err != nil {
+		slog.Error("coordinator: failed to update device state", "serial", req.Serial, "err", err)
+		return &pb.UpdateDeviceStateResponse{Success: false, Message: err.Error()}, nil
+	}
+	device, err2 := s.getDevice(req.Serial)
+	if err2 == nil {
+		s.wsManager.Broadcast("DEVICE_STATE_UPDATE", device)
+	}
+	return &pb.UpdateDeviceStateResponse{Success: true}, nil
 }
 
 func (s *Server) Heartbeat(stream pb.CoordinatorService_HeartbeatServer) error {
@@ -261,16 +285,45 @@ type DeviceJSON struct {
 	Battery      int       `json:"battery"`
 	WiFi         string    `json:"wifi_ssid"`
 	IP           string    `json:"ip"`
-	Status       string    `json:"status"`
-	StreamPort   int       `json:"stream_port"`
-	ConnectedAt  time.Time `json:"connected_at"`
+	Status            string          `json:"status"`
+	StreamPort        int             `json:"stream_port"`
+	ConnectedAt       time.Time       `json:"connected_at"`
+	FileSystem        json.RawMessage `json:"file_system,omitempty"`
+	InstalledBrowsers json.RawMessage `json:"installed_browsers,omitempty"`
+}
+
+func (s *Server) getDevice(serial string) (*DeviceJSON, error) {
+	row := s.db.db.QueryRow(`
+		SELECT serial, provider_ip, model, manufacturer, android, sdk, abi, ram_mb, storage_mb,
+		       display_width || 'x' || display_height || ' @ ' || display_dpi || 'dpi',
+		       battery, wifi_ssid, ip, status, stream_port, connected_at,
+		       file_system, installed_browsers
+		FROM devices
+		WHERE serial = $1
+	`, serial)
+
+	var d DeviceJSON
+	var fsJson sql.NullString
+	var brJson sql.NullString
+	err := row.Scan(&d.Serial, &d.ProviderID, &d.Model, &d.Manufacturer, &d.Android, &d.SDK, &d.ABI, &d.RAM, &d.Storage, &d.Display, &d.Battery, &d.WiFi, &d.IP, &d.Status, &d.StreamPort, &d.ConnectedAt, &fsJson, &brJson)
+	if err != nil {
+		return nil, err
+	}
+	if fsJson.Valid {
+		d.FileSystem = json.RawMessage(fsJson.String)
+	}
+	if brJson.Valid {
+		d.InstalledBrowsers = json.RawMessage(brJson.String)
+	}
+	return &d, nil
 }
 
 func (s *Server) getDevicesList() ([]DeviceJSON, error) {
 	rows, err := s.db.db.Query(`
 		SELECT serial, provider_ip, model, manufacturer, android, sdk, abi, ram_mb, storage_mb,
 		       display_width || 'x' || display_height || ' @ ' || display_dpi || 'dpi',
-		       battery, wifi_ssid, ip, status, stream_port, connected_at
+		       battery, wifi_ssid, ip, status, stream_port, connected_at,
+		       file_system, installed_browsers
 		FROM devices
 		ORDER BY CASE status
 		    WHEN 'idle' THEN 1
@@ -287,9 +340,17 @@ func (s *Server) getDevicesList() ([]DeviceJSON, error) {
 	var list []DeviceJSON
 	for rows.Next() {
 		var d DeviceJSON
-		err := rows.Scan(&d.Serial, &d.ProviderID, &d.Model, &d.Manufacturer, &d.Android, &d.SDK, &d.ABI, &d.RAM, &d.Storage, &d.Display, &d.Battery, &d.WiFi, &d.IP, &d.Status, &d.StreamPort, &d.ConnectedAt)
+		var fsJson sql.NullString
+		var brJson sql.NullString
+		err := rows.Scan(&d.Serial, &d.ProviderID, &d.Model, &d.Manufacturer, &d.Android, &d.SDK, &d.ABI, &d.RAM, &d.Storage, &d.Display, &d.Battery, &d.WiFi, &d.IP, &d.Status, &d.StreamPort, &d.ConnectedAt, &fsJson, &brJson)
 		if err != nil {
 			return nil, err
+		}
+		if fsJson.Valid {
+			d.FileSystem = json.RawMessage(fsJson.String)
+		}
+		if brJson.Valid {
+			d.InstalledBrowsers = json.RawMessage(brJson.String)
 		}
 		list = append(list, d)
 	}
@@ -315,17 +376,12 @@ func (s *Server) handleListDevices(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(list)
 }
 
-func (s *Server) deviceListBroadcastLoop() {
-	ticker := time.NewTicker(2 * time.Second)
-	defer ticker.Stop()
-	for {
-		<-ticker.C
-		list, err := s.getDevicesList()
-		if err == nil {
-			s.wsManager.Broadcast("DEVICE_LIST_UPDATE", list)
-		} else {
-			slog.Error("coordinator: failed to get device list for broadcast", "err", err)
-		}
+func (s *Server) broadcastFullList() {
+	list, err := s.getDevicesList()
+	if err == nil {
+		s.wsManager.Broadcast("DEVICE_LIST_UPDATE", list)
+	} else {
+		slog.Error("coordinator: failed to get device list for broadcast", "err", err)
 	}
 }
 
@@ -567,4 +623,33 @@ func (s *Server) getProviderClient(ip string, port int) (providerpb.ProviderServ
 
 func uuidString() string {
 	return uuid.New().String()
+}
+
+func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		slog.Error("coordinator: failed to upgrade to websocket", "err", err)
+		return
+	}
+
+	s.wsManager.AddClient(conn)
+	defer s.wsManager.RemoveClient(conn)
+
+	// Send initial full list
+	list, err := s.getDevicesList()
+	if err == nil {
+		msg := WSEvent{
+			Event: "DEVICE_LIST_UPDATE",
+			Data:  list,
+		}
+		b, _ := json.Marshal(msg)
+		conn.WriteMessage(websocket.TextMessage, b)
+	}
+
+	// Keep connection alive
+	for {
+		if _, _, err := conn.ReadMessage(); err != nil {
+			break
+		}
+	}
 }

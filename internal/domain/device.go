@@ -55,7 +55,22 @@ type DeviceState struct{
 	Status DeviceStatus
 	Battery BatteryInfo
 	Network NetworkInfo
+	FileSystem FileSystemInfo
+	InstalledBrowsers []string
 }
+
+type FileNode struct {
+	Name        string `json:"name"`
+	IsDirectory bool   `json:"isDirectory"`
+	Size        int64  `json:"size"`
+	Path        string `json:"path"`
+}
+
+type FileSystemInfo struct {
+	Root  string     `json:"root"`
+	Files []FileNode `json:"files"`
+}
+
 type Device struct{
 	Serial string
 	ProviderIP string

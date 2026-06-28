@@ -36,6 +36,13 @@ export function useDevicesWS() {
               setDevices(payload.data || []);
               setLoading(false);
               break;
+            case 'DEVICE_STATE_UPDATE':
+              setDevices(prev => prev.map(d =>
+                d.serial === payload.data.serial
+                  ? { ...d, ...payload.data }
+                  : d
+              ));
+              break;
             case 'DEVICE_CLAIMED':
               console.log('Device claimed:', payload.data);
               // Optimistically update device list if needed, though DEVICE_LIST_UPDATE will catch it shortly

@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v3.12.4
-// source: coordinator.proto
+// source: pkg/protocol/coordinator/coordinator.proto
 
 package coordinatorpb
 
@@ -40,7 +40,7 @@ type RegisterProviderRequest struct {
 
 func (x *RegisterProviderRequest) Reset() {
 	*x = RegisterProviderRequest{}
-	mi := &file_coordinator_proto_msgTypes[0]
+	mi := &file_pkg_protocol_coordinator_coordinator_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -52,7 +52,7 @@ func (x *RegisterProviderRequest) String() string {
 func (*RegisterProviderRequest) ProtoMessage() {}
 
 func (x *RegisterProviderRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_coordinator_proto_msgTypes[0]
+	mi := &file_pkg_protocol_coordinator_coordinator_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -65,7 +65,7 @@ func (x *RegisterProviderRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterProviderRequest.ProtoReflect.Descriptor instead.
 func (*RegisterProviderRequest) Descriptor() ([]byte, []int) {
-	return file_coordinator_proto_rawDescGZIP(), []int{0}
+	return file_pkg_protocol_coordinator_coordinator_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *RegisterProviderRequest) GetProviderId() string {
@@ -127,7 +127,7 @@ type RegisterProviderResponse struct {
 
 func (x *RegisterProviderResponse) Reset() {
 	*x = RegisterProviderResponse{}
-	mi := &file_coordinator_proto_msgTypes[1]
+	mi := &file_pkg_protocol_coordinator_coordinator_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -139,7 +139,7 @@ func (x *RegisterProviderResponse) String() string {
 func (*RegisterProviderResponse) ProtoMessage() {}
 
 func (x *RegisterProviderResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_coordinator_proto_msgTypes[1]
+	mi := &file_pkg_protocol_coordinator_coordinator_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -152,7 +152,7 @@ func (x *RegisterProviderResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterProviderResponse.ProtoReflect.Descriptor instead.
 func (*RegisterProviderResponse) Descriptor() ([]byte, []int) {
-	return file_coordinator_proto_rawDescGZIP(), []int{1}
+	return file_pkg_protocol_coordinator_coordinator_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *RegisterProviderResponse) GetAccepted() bool {
@@ -196,7 +196,7 @@ type RegisterDeviceRequest struct {
 
 func (x *RegisterDeviceRequest) Reset() {
 	*x = RegisterDeviceRequest{}
-	mi := &file_coordinator_proto_msgTypes[2]
+	mi := &file_pkg_protocol_coordinator_coordinator_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -208,7 +208,7 @@ func (x *RegisterDeviceRequest) String() string {
 func (*RegisterDeviceRequest) ProtoMessage() {}
 
 func (x *RegisterDeviceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_coordinator_proto_msgTypes[2]
+	mi := &file_pkg_protocol_coordinator_coordinator_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -221,7 +221,7 @@ func (x *RegisterDeviceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterDeviceRequest.ProtoReflect.Descriptor instead.
 func (*RegisterDeviceRequest) Descriptor() ([]byte, []int) {
-	return file_coordinator_proto_rawDescGZIP(), []int{2}
+	return file_pkg_protocol_coordinator_coordinator_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *RegisterDeviceRequest) GetProviderId() string {
@@ -346,7 +346,7 @@ type RegisterDeviceResponse struct {
 
 func (x *RegisterDeviceResponse) Reset() {
 	*x = RegisterDeviceResponse{}
-	mi := &file_coordinator_proto_msgTypes[3]
+	mi := &file_pkg_protocol_coordinator_coordinator_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -358,7 +358,7 @@ func (x *RegisterDeviceResponse) String() string {
 func (*RegisterDeviceResponse) ProtoMessage() {}
 
 func (x *RegisterDeviceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_coordinator_proto_msgTypes[3]
+	mi := &file_pkg_protocol_coordinator_coordinator_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -371,7 +371,7 @@ func (x *RegisterDeviceResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterDeviceResponse.ProtoReflect.Descriptor instead.
 func (*RegisterDeviceResponse) Descriptor() ([]byte, []int) {
-	return file_coordinator_proto_rawDescGZIP(), []int{3}
+	return file_pkg_protocol_coordinator_coordinator_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *RegisterDeviceResponse) GetAccepted() bool {
@@ -401,7 +401,7 @@ type ReleaseDeviceRequest struct {
 
 func (x *ReleaseDeviceRequest) Reset() {
 	*x = ReleaseDeviceRequest{}
-	mi := &file_coordinator_proto_msgTypes[4]
+	mi := &file_pkg_protocol_coordinator_coordinator_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -413,7 +413,7 @@ func (x *ReleaseDeviceRequest) String() string {
 func (*ReleaseDeviceRequest) ProtoMessage() {}
 
 func (x *ReleaseDeviceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_coordinator_proto_msgTypes[4]
+	mi := &file_pkg_protocol_coordinator_coordinator_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -426,7 +426,7 @@ func (x *ReleaseDeviceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReleaseDeviceRequest.ProtoReflect.Descriptor instead.
 func (*ReleaseDeviceRequest) Descriptor() ([]byte, []int) {
-	return file_coordinator_proto_rawDescGZIP(), []int{4}
+	return file_pkg_protocol_coordinator_coordinator_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ReleaseDeviceRequest) GetProviderId() string {
@@ -452,7 +452,7 @@ type ReleaseDeviceResponse struct {
 
 func (x *ReleaseDeviceResponse) Reset() {
 	*x = ReleaseDeviceResponse{}
-	mi := &file_coordinator_proto_msgTypes[5]
+	mi := &file_pkg_protocol_coordinator_coordinator_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -464,7 +464,7 @@ func (x *ReleaseDeviceResponse) String() string {
 func (*ReleaseDeviceResponse) ProtoMessage() {}
 
 func (x *ReleaseDeviceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_coordinator_proto_msgTypes[5]
+	mi := &file_pkg_protocol_coordinator_coordinator_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -477,7 +477,7 @@ func (x *ReleaseDeviceResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReleaseDeviceResponse.ProtoReflect.Descriptor instead.
 func (*ReleaseDeviceResponse) Descriptor() ([]byte, []int) {
-	return file_coordinator_proto_rawDescGZIP(), []int{5}
+	return file_pkg_protocol_coordinator_coordinator_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ReleaseDeviceResponse) GetOk() bool {
@@ -485,6 +485,145 @@ func (x *ReleaseDeviceResponse) GetOk() bool {
 		return x.Ok
 	}
 	return false
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// UpdateDeviceState
+// ─────────────────────────────────────────────────────────────────────────────
+type UpdateDeviceStateRequest struct {
+	state                 protoimpl.MessageState `protogen:"open.v1"`
+	ProviderId            string                 `protobuf:"bytes,1,opt,name=provider_id,json=providerId,proto3" json:"provider_id,omitempty"`
+	Serial                string                 `protobuf:"bytes,2,opt,name=serial,proto3" json:"serial,omitempty"`
+	Battery               int32                  `protobuf:"varint,3,opt,name=battery,proto3" json:"battery,omitempty"`
+	WifiSsid              string                 `protobuf:"bytes,4,opt,name=wifi_ssid,json=wifiSsid,proto3" json:"wifi_ssid,omitempty"`
+	FileSystemJson        string                 `protobuf:"bytes,5,opt,name=file_system_json,json=fileSystemJson,proto3" json:"file_system_json,omitempty"`
+	InstalledBrowsersJson string                 `protobuf:"bytes,6,opt,name=installed_browsers_json,json=installedBrowsersJson,proto3" json:"installed_browsers_json,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
+}
+
+func (x *UpdateDeviceStateRequest) Reset() {
+	*x = UpdateDeviceStateRequest{}
+	mi := &file_pkg_protocol_coordinator_coordinator_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateDeviceStateRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateDeviceStateRequest) ProtoMessage() {}
+
+func (x *UpdateDeviceStateRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_pkg_protocol_coordinator_coordinator_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateDeviceStateRequest.ProtoReflect.Descriptor instead.
+func (*UpdateDeviceStateRequest) Descriptor() ([]byte, []int) {
+	return file_pkg_protocol_coordinator_coordinator_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *UpdateDeviceStateRequest) GetProviderId() string {
+	if x != nil {
+		return x.ProviderId
+	}
+	return ""
+}
+
+func (x *UpdateDeviceStateRequest) GetSerial() string {
+	if x != nil {
+		return x.Serial
+	}
+	return ""
+}
+
+func (x *UpdateDeviceStateRequest) GetBattery() int32 {
+	if x != nil {
+		return x.Battery
+	}
+	return 0
+}
+
+func (x *UpdateDeviceStateRequest) GetWifiSsid() string {
+	if x != nil {
+		return x.WifiSsid
+	}
+	return ""
+}
+
+func (x *UpdateDeviceStateRequest) GetFileSystemJson() string {
+	if x != nil {
+		return x.FileSystemJson
+	}
+	return ""
+}
+
+func (x *UpdateDeviceStateRequest) GetInstalledBrowsersJson() string {
+	if x != nil {
+		return x.InstalledBrowsersJson
+	}
+	return ""
+}
+
+type UpdateDeviceStateResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateDeviceStateResponse) Reset() {
+	*x = UpdateDeviceStateResponse{}
+	mi := &file_pkg_protocol_coordinator_coordinator_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateDeviceStateResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateDeviceStateResponse) ProtoMessage() {}
+
+func (x *UpdateDeviceStateResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_pkg_protocol_coordinator_coordinator_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateDeviceStateResponse.ProtoReflect.Descriptor instead.
+func (*UpdateDeviceStateResponse) Descriptor() ([]byte, []int) {
+	return file_pkg_protocol_coordinator_coordinator_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *UpdateDeviceStateResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *UpdateDeviceStateResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -502,7 +641,7 @@ type HeartbeatPing struct {
 
 func (x *HeartbeatPing) Reset() {
 	*x = HeartbeatPing{}
-	mi := &file_coordinator_proto_msgTypes[6]
+	mi := &file_pkg_protocol_coordinator_coordinator_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -514,7 +653,7 @@ func (x *HeartbeatPing) String() string {
 func (*HeartbeatPing) ProtoMessage() {}
 
 func (x *HeartbeatPing) ProtoReflect() protoreflect.Message {
-	mi := &file_coordinator_proto_msgTypes[6]
+	mi := &file_pkg_protocol_coordinator_coordinator_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -527,7 +666,7 @@ func (x *HeartbeatPing) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HeartbeatPing.ProtoReflect.Descriptor instead.
 func (*HeartbeatPing) Descriptor() ([]byte, []int) {
-	return file_coordinator_proto_rawDescGZIP(), []int{6}
+	return file_pkg_protocol_coordinator_coordinator_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *HeartbeatPing) GetProviderId() string {
@@ -567,7 +706,7 @@ type HeartbeatPong struct {
 
 func (x *HeartbeatPong) Reset() {
 	*x = HeartbeatPong{}
-	mi := &file_coordinator_proto_msgTypes[7]
+	mi := &file_pkg_protocol_coordinator_coordinator_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -579,7 +718,7 @@ func (x *HeartbeatPong) String() string {
 func (*HeartbeatPong) ProtoMessage() {}
 
 func (x *HeartbeatPong) ProtoReflect() protoreflect.Message {
-	mi := &file_coordinator_proto_msgTypes[7]
+	mi := &file_pkg_protocol_coordinator_coordinator_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -592,7 +731,7 @@ func (x *HeartbeatPong) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HeartbeatPong.ProtoReflect.Descriptor instead.
 func (*HeartbeatPong) Descriptor() ([]byte, []int) {
-	return file_coordinator_proto_rawDescGZIP(), []int{7}
+	return file_pkg_protocol_coordinator_coordinator_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *HeartbeatPong) GetReceivedAt() *timestamp.Timestamp {
@@ -652,7 +791,7 @@ type ReconnectCommand struct {
 
 func (x *ReconnectCommand) Reset() {
 	*x = ReconnectCommand{}
-	mi := &file_coordinator_proto_msgTypes[8]
+	mi := &file_pkg_protocol_coordinator_coordinator_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -664,7 +803,7 @@ func (x *ReconnectCommand) String() string {
 func (*ReconnectCommand) ProtoMessage() {}
 
 func (x *ReconnectCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_coordinator_proto_msgTypes[8]
+	mi := &file_pkg_protocol_coordinator_coordinator_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -677,7 +816,7 @@ func (x *ReconnectCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReconnectCommand.ProtoReflect.Descriptor instead.
 func (*ReconnectCommand) Descriptor() ([]byte, []int) {
-	return file_coordinator_proto_rawDescGZIP(), []int{8}
+	return file_pkg_protocol_coordinator_coordinator_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *ReconnectCommand) GetReason() string {
@@ -696,7 +835,7 @@ type ShutdownCommand struct {
 
 func (x *ShutdownCommand) Reset() {
 	*x = ShutdownCommand{}
-	mi := &file_coordinator_proto_msgTypes[9]
+	mi := &file_pkg_protocol_coordinator_coordinator_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -708,7 +847,7 @@ func (x *ShutdownCommand) String() string {
 func (*ShutdownCommand) ProtoMessage() {}
 
 func (x *ShutdownCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_coordinator_proto_msgTypes[9]
+	mi := &file_pkg_protocol_coordinator_coordinator_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -721,7 +860,7 @@ func (x *ShutdownCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ShutdownCommand.ProtoReflect.Descriptor instead.
 func (*ShutdownCommand) Descriptor() ([]byte, []int) {
-	return file_coordinator_proto_rawDescGZIP(), []int{9}
+	return file_pkg_protocol_coordinator_coordinator_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *ShutdownCommand) GetReason() string {
@@ -731,11 +870,11 @@ func (x *ShutdownCommand) GetReason() string {
 	return ""
 }
 
-var File_coordinator_proto protoreflect.FileDescriptor
+var File_pkg_protocol_coordinator_coordinator_proto protoreflect.FileDescriptor
 
-const file_coordinator_proto_rawDesc = "" +
+const file_pkg_protocol_coordinator_coordinator_proto_rawDesc = "" +
 	"\n" +
-	"\x11coordinator.proto\x12\vcoordinator\x1a\x1fgoogle/protobuf/timestamp.proto\"\xc2\x01\n" +
+	"*pkg/protocol/coordinator/coordinator.proto\x12\vcoordinator\x1a\x1fgoogle/protobuf/timestamp.proto\"\xc2\x01\n" +
 	"\x17RegisterProviderRequest\x12\x1f\n" +
 	"\vprovider_id\x18\x01 \x01(\tR\n" +
 	"providerId\x12\x12\n" +
@@ -777,7 +916,18 @@ const file_coordinator_proto_rawDesc = "" +
 	"providerId\x12\x16\n" +
 	"\x06serial\x18\x02 \x01(\tR\x06serial\"'\n" +
 	"\x15ReleaseDeviceResponse\x12\x0e\n" +
-	"\x02ok\x18\x01 \x01(\bR\x02ok\"\x8c\x01\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\"\xec\x01\n" +
+	"\x18UpdateDeviceStateRequest\x12\x1f\n" +
+	"\vprovider_id\x18\x01 \x01(\tR\n" +
+	"providerId\x12\x16\n" +
+	"\x06serial\x18\x02 \x01(\tR\x06serial\x12\x18\n" +
+	"\abattery\x18\x03 \x01(\x05R\abattery\x12\x1b\n" +
+	"\twifi_ssid\x18\x04 \x01(\tR\bwifiSsid\x12(\n" +
+	"\x10file_system_json\x18\x05 \x01(\tR\x0efileSystemJson\x126\n" +
+	"\x17installed_browsers_json\x18\x06 \x01(\tR\x15installedBrowsersJson\"O\n" +
+	"\x19UpdateDeviceStateResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"\x8c\x01\n" +
 	"\rHeartbeatPing\x12\x1f\n" +
 	"\vprovider_id\x18\x01 \x01(\tR\n" +
 	"providerId\x123\n" +
@@ -792,66 +942,71 @@ const file_coordinator_proto_rawDesc = "" +
 	"\x10ReconnectCommand\x12\x16\n" +
 	"\x06reason\x18\x01 \x01(\tR\x06reason\")\n" +
 	"\x0fShutdownCommand\x12\x16\n" +
-	"\x06reason\x18\x01 \x01(\tR\x06reason2\xf1\x02\n" +
+	"\x06reason\x18\x01 \x01(\tR\x06reason2\xd5\x03\n" +
 	"\x12CoordinatorService\x12_\n" +
 	"\x10RegisterProvider\x12$.coordinator.RegisterProviderRequest\x1a%.coordinator.RegisterProviderResponse\x12Y\n" +
 	"\x0eRegisterDevice\x12\".coordinator.RegisterDeviceRequest\x1a#.coordinator.RegisterDeviceResponse\x12V\n" +
 	"\rReleaseDevice\x12!.coordinator.ReleaseDeviceRequest\x1a\".coordinator.ReleaseDeviceResponse\x12G\n" +
-	"\tHeartbeat\x12\x1a.coordinator.HeartbeatPing\x1a\x1a.coordinator.HeartbeatPong(\x010\x01B9Z7protean-provider/pkg/protocol/coordinator;coordinatorpbb\x06proto3"
+	"\tHeartbeat\x12\x1a.coordinator.HeartbeatPing\x1a\x1a.coordinator.HeartbeatPong(\x010\x01\x12b\n" +
+	"\x11UpdateDeviceState\x12%.coordinator.UpdateDeviceStateRequest\x1a&.coordinator.UpdateDeviceStateResponseB9Z7protean-provider/pkg/protocol/coordinator;coordinatorpbb\x06proto3"
 
 var (
-	file_coordinator_proto_rawDescOnce sync.Once
-	file_coordinator_proto_rawDescData []byte
+	file_pkg_protocol_coordinator_coordinator_proto_rawDescOnce sync.Once
+	file_pkg_protocol_coordinator_coordinator_proto_rawDescData []byte
 )
 
-func file_coordinator_proto_rawDescGZIP() []byte {
-	file_coordinator_proto_rawDescOnce.Do(func() {
-		file_coordinator_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_coordinator_proto_rawDesc), len(file_coordinator_proto_rawDesc)))
+func file_pkg_protocol_coordinator_coordinator_proto_rawDescGZIP() []byte {
+	file_pkg_protocol_coordinator_coordinator_proto_rawDescOnce.Do(func() {
+		file_pkg_protocol_coordinator_coordinator_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_pkg_protocol_coordinator_coordinator_proto_rawDesc), len(file_pkg_protocol_coordinator_coordinator_proto_rawDesc)))
 	})
-	return file_coordinator_proto_rawDescData
+	return file_pkg_protocol_coordinator_coordinator_proto_rawDescData
 }
 
-var file_coordinator_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
-var file_coordinator_proto_goTypes = []any{
-	(*RegisterProviderRequest)(nil),  // 0: coordinator.RegisterProviderRequest
-	(*RegisterProviderResponse)(nil), // 1: coordinator.RegisterProviderResponse
-	(*RegisterDeviceRequest)(nil),    // 2: coordinator.RegisterDeviceRequest
-	(*RegisterDeviceResponse)(nil),   // 3: coordinator.RegisterDeviceResponse
-	(*ReleaseDeviceRequest)(nil),     // 4: coordinator.ReleaseDeviceRequest
-	(*ReleaseDeviceResponse)(nil),    // 5: coordinator.ReleaseDeviceResponse
-	(*HeartbeatPing)(nil),            // 6: coordinator.HeartbeatPing
-	(*HeartbeatPong)(nil),            // 7: coordinator.HeartbeatPong
-	(*ReconnectCommand)(nil),         // 8: coordinator.ReconnectCommand
-	(*ShutdownCommand)(nil),          // 9: coordinator.ShutdownCommand
-	(*timestamp.Timestamp)(nil),      // 10: google.protobuf.Timestamp
+var file_pkg_protocol_coordinator_coordinator_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_pkg_protocol_coordinator_coordinator_proto_goTypes = []any{
+	(*RegisterProviderRequest)(nil),   // 0: coordinator.RegisterProviderRequest
+	(*RegisterProviderResponse)(nil),  // 1: coordinator.RegisterProviderResponse
+	(*RegisterDeviceRequest)(nil),     // 2: coordinator.RegisterDeviceRequest
+	(*RegisterDeviceResponse)(nil),    // 3: coordinator.RegisterDeviceResponse
+	(*ReleaseDeviceRequest)(nil),      // 4: coordinator.ReleaseDeviceRequest
+	(*ReleaseDeviceResponse)(nil),     // 5: coordinator.ReleaseDeviceResponse
+	(*UpdateDeviceStateRequest)(nil),  // 6: coordinator.UpdateDeviceStateRequest
+	(*UpdateDeviceStateResponse)(nil), // 7: coordinator.UpdateDeviceStateResponse
+	(*HeartbeatPing)(nil),             // 8: coordinator.HeartbeatPing
+	(*HeartbeatPong)(nil),             // 9: coordinator.HeartbeatPong
+	(*ReconnectCommand)(nil),          // 10: coordinator.ReconnectCommand
+	(*ShutdownCommand)(nil),           // 11: coordinator.ShutdownCommand
+	(*timestamp.Timestamp)(nil),       // 12: google.protobuf.Timestamp
 }
-var file_coordinator_proto_depIdxs = []int32{
-	10, // 0: coordinator.RegisterDeviceRequest.connected_at:type_name -> google.protobuf.Timestamp
-	10, // 1: coordinator.HeartbeatPing.sent_at:type_name -> google.protobuf.Timestamp
-	10, // 2: coordinator.HeartbeatPong.received_at:type_name -> google.protobuf.Timestamp
-	8,  // 3: coordinator.HeartbeatPong.reconnect:type_name -> coordinator.ReconnectCommand
-	9,  // 4: coordinator.HeartbeatPong.shutdown:type_name -> coordinator.ShutdownCommand
+var file_pkg_protocol_coordinator_coordinator_proto_depIdxs = []int32{
+	12, // 0: coordinator.RegisterDeviceRequest.connected_at:type_name -> google.protobuf.Timestamp
+	12, // 1: coordinator.HeartbeatPing.sent_at:type_name -> google.protobuf.Timestamp
+	12, // 2: coordinator.HeartbeatPong.received_at:type_name -> google.protobuf.Timestamp
+	10, // 3: coordinator.HeartbeatPong.reconnect:type_name -> coordinator.ReconnectCommand
+	11, // 4: coordinator.HeartbeatPong.shutdown:type_name -> coordinator.ShutdownCommand
 	0,  // 5: coordinator.CoordinatorService.RegisterProvider:input_type -> coordinator.RegisterProviderRequest
 	2,  // 6: coordinator.CoordinatorService.RegisterDevice:input_type -> coordinator.RegisterDeviceRequest
 	4,  // 7: coordinator.CoordinatorService.ReleaseDevice:input_type -> coordinator.ReleaseDeviceRequest
-	6,  // 8: coordinator.CoordinatorService.Heartbeat:input_type -> coordinator.HeartbeatPing
-	1,  // 9: coordinator.CoordinatorService.RegisterProvider:output_type -> coordinator.RegisterProviderResponse
-	3,  // 10: coordinator.CoordinatorService.RegisterDevice:output_type -> coordinator.RegisterDeviceResponse
-	5,  // 11: coordinator.CoordinatorService.ReleaseDevice:output_type -> coordinator.ReleaseDeviceResponse
-	7,  // 12: coordinator.CoordinatorService.Heartbeat:output_type -> coordinator.HeartbeatPong
-	9,  // [9:13] is the sub-list for method output_type
-	5,  // [5:9] is the sub-list for method input_type
+	8,  // 8: coordinator.CoordinatorService.Heartbeat:input_type -> coordinator.HeartbeatPing
+	6,  // 9: coordinator.CoordinatorService.UpdateDeviceState:input_type -> coordinator.UpdateDeviceStateRequest
+	1,  // 10: coordinator.CoordinatorService.RegisterProvider:output_type -> coordinator.RegisterProviderResponse
+	3,  // 11: coordinator.CoordinatorService.RegisterDevice:output_type -> coordinator.RegisterDeviceResponse
+	5,  // 12: coordinator.CoordinatorService.ReleaseDevice:output_type -> coordinator.ReleaseDeviceResponse
+	9,  // 13: coordinator.CoordinatorService.Heartbeat:output_type -> coordinator.HeartbeatPong
+	7,  // 14: coordinator.CoordinatorService.UpdateDeviceState:output_type -> coordinator.UpdateDeviceStateResponse
+	10, // [10:15] is the sub-list for method output_type
+	5,  // [5:10] is the sub-list for method input_type
 	5,  // [5:5] is the sub-list for extension type_name
 	5,  // [5:5] is the sub-list for extension extendee
 	0,  // [0:5] is the sub-list for field type_name
 }
 
-func init() { file_coordinator_proto_init() }
-func file_coordinator_proto_init() {
-	if File_coordinator_proto != nil {
+func init() { file_pkg_protocol_coordinator_coordinator_proto_init() }
+func file_pkg_protocol_coordinator_coordinator_proto_init() {
+	if File_pkg_protocol_coordinator_coordinator_proto != nil {
 		return
 	}
-	file_coordinator_proto_msgTypes[7].OneofWrappers = []any{
+	file_pkg_protocol_coordinator_coordinator_proto_msgTypes[9].OneofWrappers = []any{
 		(*HeartbeatPong_Reconnect)(nil),
 		(*HeartbeatPong_Shutdown)(nil),
 	}
@@ -859,17 +1014,17 @@ func file_coordinator_proto_init() {
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_coordinator_proto_rawDesc), len(file_coordinator_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_pkg_protocol_coordinator_coordinator_proto_rawDesc), len(file_pkg_protocol_coordinator_coordinator_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   10,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_coordinator_proto_goTypes,
-		DependencyIndexes: file_coordinator_proto_depIdxs,
-		MessageInfos:      file_coordinator_proto_msgTypes,
+		GoTypes:           file_pkg_protocol_coordinator_coordinator_proto_goTypes,
+		DependencyIndexes: file_pkg_protocol_coordinator_coordinator_proto_depIdxs,
+		MessageInfos:      file_pkg_protocol_coordinator_coordinator_proto_msgTypes,
 	}.Build()
-	File_coordinator_proto = out.File
-	file_coordinator_proto_goTypes = nil
-	file_coordinator_proto_depIdxs = nil
+	File_pkg_protocol_coordinator_coordinator_proto = out.File
+	file_pkg_protocol_coordinator_coordinator_proto_goTypes = nil
+	file_pkg_protocol_coordinator_coordinator_proto_depIdxs = nil
 }

@@ -102,7 +102,7 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	// 2. Deploy the Agent APK which will setup adb reverse and connect back
 	go func() {
-		if err := adb.DeployAgent(a.serial, a.port); err != nil {
+		if err := DeployAgent(a.serial, a.port); err != nil {
 			slog.Warn("agent: failed to deploy apk", "serial", a.serial, "err", err)
 		}
 	}()
@@ -202,6 +202,33 @@ func (a *Agent) handleIncomingEvent(data []byte) {
 		a.device.State.Network.Connected = false
 		a.device.State.Network.WiFiSSID = ""
 		updated = true
+	case "FILE_SYSTEM_STRUCTURE":
+		var fs struct {
+			Root  string            `json:"root"`
+			Files []domain.FileNode `json:"files"`
+		}
+		if err := json.Unmarshal(event.Payload, &fs); err == nil {
+			a.device.State.FileSystem.Root = fs.Root
+			a.device.State.FileSystem.Files = fs.Files
+			updated = true
+		}
+	case "MEDIA_MOUNTED", "MEDIA_UNMOUNTED":
+		var mount struct {
+			Action string `json:"action"`
+			Path   string `json:"path"`
+		}
+		if err := json.Unmarshal(event.Payload, &mount); err == nil {
+			slog.Info("agent: media mount event", "serial", a.serial, "action", mount.Action, "path", mount.Path)
+			// Triggering an intent or refreshing file list could go here in the future
+		}
+	case "INSTALLED_BROWSERS":
+		var browsers struct {
+			Browsers []string `json:"browsers"`
+		}
+		if err := json.Unmarshal(event.Payload, &browsers); err == nil {
+			a.device.State.InstalledBrowsers = browsers.Browsers
+			updated = true
+		}
 	case "PACKAGE_INSTALLED", "PACKAGE_UPDATED":
 		var pkg struct {
 			PackageName string `json:"packageName"`

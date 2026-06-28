@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v3.12.4
-// source: coordinator.proto
+// source: pkg/protocol/coordinator/coordinator.proto
 
 package coordinatorpb
 
@@ -19,10 +19,11 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	CoordinatorService_RegisterProvider_FullMethodName = "/coordinator.CoordinatorService/RegisterProvider"
-	CoordinatorService_RegisterDevice_FullMethodName   = "/coordinator.CoordinatorService/RegisterDevice"
-	CoordinatorService_ReleaseDevice_FullMethodName    = "/coordinator.CoordinatorService/ReleaseDevice"
-	CoordinatorService_Heartbeat_FullMethodName        = "/coordinator.CoordinatorService/Heartbeat"
+	CoordinatorService_RegisterProvider_FullMethodName  = "/coordinator.CoordinatorService/RegisterProvider"
+	CoordinatorService_RegisterDevice_FullMethodName    = "/coordinator.CoordinatorService/RegisterDevice"
+	CoordinatorService_ReleaseDevice_FullMethodName     = "/coordinator.CoordinatorService/ReleaseDevice"
+	CoordinatorService_Heartbeat_FullMethodName         = "/coordinator.CoordinatorService/Heartbeat"
+	CoordinatorService_UpdateDeviceState_FullMethodName = "/coordinator.CoordinatorService/UpdateDeviceState"
 )
 
 // CoordinatorServiceClient is the client API for CoordinatorService service.
@@ -43,6 +44,8 @@ type CoordinatorServiceClient interface {
 	// Heartbeat is a bi-directional streaming RPC.
 	// Provider sends periodic pings; coordinator may push commands back.
 	Heartbeat(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[HeartbeatPing, HeartbeatPong], error)
+	// UpdateDeviceState allows the provider to dynamically push telemetry updates (battery, network, file system, browsers).
+	UpdateDeviceState(ctx context.Context, in *UpdateDeviceStateRequest, opts ...grpc.CallOption) (*UpdateDeviceStateResponse, error)
 }
 
 type coordinatorServiceClient struct {
@@ -96,6 +99,16 @@ func (c *coordinatorServiceClient) Heartbeat(ctx context.Context, opts ...grpc.C
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type CoordinatorService_HeartbeatClient = grpc.BidiStreamingClient[HeartbeatPing, HeartbeatPong]
 
+func (c *coordinatorServiceClient) UpdateDeviceState(ctx context.Context, in *UpdateDeviceStateRequest, opts ...grpc.CallOption) (*UpdateDeviceStateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateDeviceStateResponse)
+	err := c.cc.Invoke(ctx, CoordinatorService_UpdateDeviceState_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CoordinatorServiceServer is the server API for CoordinatorService service.
 // All implementations must embed UnimplementedCoordinatorServiceServer
 // for forward compatibility.
@@ -114,6 +127,8 @@ type CoordinatorServiceServer interface {
 	// Heartbeat is a bi-directional streaming RPC.
 	// Provider sends periodic pings; coordinator may push commands back.
 	Heartbeat(grpc.BidiStreamingServer[HeartbeatPing, HeartbeatPong]) error
+	// UpdateDeviceState allows the provider to dynamically push telemetry updates (battery, network, file system, browsers).
+	UpdateDeviceState(context.Context, *UpdateDeviceStateRequest) (*UpdateDeviceStateResponse, error)
 	mustEmbedUnimplementedCoordinatorServiceServer()
 }
 
@@ -135,6 +150,9 @@ func (UnimplementedCoordinatorServiceServer) ReleaseDevice(context.Context, *Rel
 }
 func (UnimplementedCoordinatorServiceServer) Heartbeat(grpc.BidiStreamingServer[HeartbeatPing, HeartbeatPong]) error {
 	return status.Error(codes.Unimplemented, "method Heartbeat not implemented")
+}
+func (UnimplementedCoordinatorServiceServer) UpdateDeviceState(context.Context, *UpdateDeviceStateRequest) (*UpdateDeviceStateResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateDeviceState not implemented")
 }
 func (UnimplementedCoordinatorServiceServer) mustEmbedUnimplementedCoordinatorServiceServer() {}
 func (UnimplementedCoordinatorServiceServer) testEmbeddedByValue()                            {}
@@ -218,6 +236,24 @@ func _CoordinatorService_Heartbeat_Handler(srv interface{}, stream grpc.ServerSt
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type CoordinatorService_HeartbeatServer = grpc.BidiStreamingServer[HeartbeatPing, HeartbeatPong]
 
+func _CoordinatorService_UpdateDeviceState_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateDeviceStateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CoordinatorServiceServer).UpdateDeviceState(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CoordinatorService_UpdateDeviceState_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CoordinatorServiceServer).UpdateDeviceState(ctx, req.(*UpdateDeviceStateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // CoordinatorService_ServiceDesc is the grpc.ServiceDesc for CoordinatorService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -237,6 +273,10 @@ var CoordinatorService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "ReleaseDevice",
 			Handler:    _CoordinatorService_ReleaseDevice_Handler,
 		},
+		{
+			MethodName: "UpdateDeviceState",
+			Handler:    _CoordinatorService_UpdateDeviceState_Handler,
+		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
@@ -246,5 +286,5 @@ var CoordinatorService_ServiceDesc = grpc.ServiceDesc{
 			ClientStreams: true,
 		},
 	},
-	Metadata: "coordinator.proto",
+	Metadata: "pkg/protocol/coordinator/coordinator.proto",
 }

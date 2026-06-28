@@ -67,7 +67,7 @@ func New(cfg *config.Config) (*App, error) {
 
 	// ── Stream Manager ──────────────────────────────────────────────────────
 	var sup *supervisor.Supervisor
-	streamMgr := stream.NewManager(cfg)
+	streamMgr := stream.NewManager(cfg, reg)
 
 	// ── Supervisor (initialised but not started yet) ──────────────────────────
 	// We pass a background context for the port allocator's DB restore;
@@ -262,7 +262,7 @@ func (a *App) handleSupervisorEvent(e supervisor.SupervisorEvent) {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), a.cfg.Coordinator.CallTimeout)
 		defer cancel()
-		if err := a.coordinator.RegisterDevice(ctx, e.Device); err != nil {
+		if err := a.coordinator.UpdateDeviceState(ctx, e.Device); err != nil {
 			slog.Warn("coordinator: failed to update device telemetry on coordinator", "serial", e.Serial, "err", err)
 		}
 	}()

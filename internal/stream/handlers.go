@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"os/exec"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -13,6 +14,32 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
 		return true // Allow all origins for enterprise-grade provider portal API
 	},
+}
+
+// handleState returns the full domain.Device state including FileSystem and Browsers.
+func (m *Manager) handleState(w http.ResponseWriter, r *http.Request, serial string) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	device, err := m.registry.Get(serial)
+	if err != nil {
+		http.Error(w, "device not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(device.State); err != nil {
+		slog.Error("stream: failed to encode device state", "serial", serial, "err", err)
+	}
 }
 
 // handleStreamClient serves one HTTP client with raw H.264 stream.
@@ -222,6 +249,16 @@ func (m *Manager) handleWS(w http.ResponseWriter, r *http.Request, serial string
 		var ev ControlEvent
 		if err := json.Unmarshal(payload, &ev); err != nil {
 			slog.Warn("stream: ws bad json payload", "serial", serial, "err", err)
+			continue
+		}
+
+		if ev.Type == "LIST_DIRECTORY" {
+			go func(path string) {
+				cmd := exec.Command("adb", "-s", serial, "shell", "am", "broadcast", "-a", "com.protean.agent.COMMAND", "-e", "command", "LIST_DIRECTORY", "-e", "path", path)
+				if err := cmd.Run(); err != nil {
+					slog.Warn("stream: failed to broadcast LIST_DIRECTORY", "serial", serial, "path", path, "err", err)
+				}
+			}(ev.Path)
 			continue
 		}
 

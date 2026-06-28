@@ -137,7 +137,7 @@ func TestManager_IsCapturing_InitialState(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.Stream.MaxFPS = 15
 	cfg.Stream.Quality = 80
-	m := NewManager(cfg)
+	m := NewManager(cfg, nil)
 	if m.IsCapturing("DUMMY001") {
 		t.Error("expected IsCapturing=false for unknown serial")
 	}
