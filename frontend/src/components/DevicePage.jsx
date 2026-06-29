@@ -4,6 +4,7 @@ import './DevicePage.css';
 import DashboardTab from './device-page/DashboardTab';
 import DeviceTabsHeader from './device-page/DeviceTabsHeader';
 import FilesTab from './device-page/FilesTab';
+import MediaTab from './device-page/MediaTab';
 import InfoTab from './device-page/InfoTab';
 import PlaceholderTab from './device-page/PlaceholderTab';
 function DevicePage({ device, onBack, onRelease }) {
@@ -775,7 +776,7 @@ function DevicePage({ device, onBack, onRelease }) {
           )}
 
           {activeTab === 'media' && (
-            <PlaceholderTab
+            <MediaTab
               icon={Camera}
               title="Media Gallery"
               description="View screenshots and screen recordings from this device."
