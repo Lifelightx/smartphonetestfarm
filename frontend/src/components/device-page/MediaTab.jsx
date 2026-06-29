@@ -1,228 +1,162 @@
-import React from "react";
+import React, { useState } from "react";
 import {
     Camera,
     Video,
     Square,
     Download,
     Trash2,
-    RefreshCw,
-    Copy,
-    Image,
-    Film
+    Image as ImageIcon,
+    Film,
+    Grid,
+    ListVideo
 } from "lucide-react";
 
 import "./MediaTab.css";
 
 function MediaTab({
-    screenshot,
     recording,
     mediaFiles = [],
     takeScreenshot,
     startRecording,
     stopRecording,
-    refreshMedia,
     downloadMedia,
-    deleteMedia,
-    copyPath,
+    deleteMedia
 }) {
+    const [subTab, setSubTab] = useState("screenshots");
+
+    const screenshots = mediaFiles.filter(f => f.type === "image");
+    const recordings = mediaFiles.filter(f => f.type === "video");
+
+    const downloadAllScreenshots = () => {
+        screenshots.forEach((s, index) => {
+            setTimeout(() => downloadMedia(s), index * 300); // Stagger downloads slightly
+        });
+    };
+
+    const downloadAllRecordings = () => {
+        recordings.forEach((r, index) => {
+            setTimeout(() => downloadMedia(r), index * 300);
+        });
+    };
 
     return (
-        <div className="media-grid">
+        <div className="media-container">
+            {/* Sub-navigation */}
+            <div className="media-tabs">
+                <button 
+                    className={`media-tab ${subTab === "screenshots" ? "active" : ""}`}
+                    onClick={() => setSubTab("screenshots")}
+                >
+                    <Camera size={16} />
+                    Screenshots
+                </button>
+                <button 
+                    className={`media-tab ${subTab === "recordings" ? "active" : ""}`}
+                    onClick={() => setSubTab("recordings")}
+                >
+                    <Video size={16} />
+                    Screen Records
+                </button>
+            </div>
 
-            {/* Screenshot */}
-
-            <div className="media-card">
-
-                <div className="media-header">
-                    <span>
-                        <Camera size={18} />
-                        Screenshot
-                    </span>
-
-                    <button
-                        className="icon-btn"
-                        onClick={refreshMedia}
-                    >
-                        <RefreshCw size={16} />
-                    </button>
-                </div>
-
-                <div className="preview-box">
-
-                    {screenshot ? (
-                        <img
-                            src={screenshot.url}
-                            alt=""
-                        />
-                    ) : (
-                        <div className="placeholder">
-                            <Image size={40} />
-                            No Screenshot
-                        </div>
-                    )}
-
-                </div>
-
-                <div className="action-row">
-
-                    <button
-                        className="btn btn-primary"
-                        onClick={takeScreenshot}
-                    >
-                        <Camera size={15} />
-                        Capture
-                    </button>
-
-                    {screenshot && (
-                        <>
-                            <button
-                                className="btn btn-ghost"
-                                onClick={() => downloadMedia(screenshot)}
-                            >
-                                <Download size={15} />
+            <div className="media-content">
+                {subTab === "screenshots" && (
+                    <div className="screenshots-view">
+                        <div className="media-toolbar">
+                            <button className="btn btn-primary" onClick={takeScreenshot}>
+                                <Camera size={16} /> Capture Screenshot
                             </button>
-
-                            <button
-                                className="btn btn-ghost"
-                                onClick={() => copyPath(screenshot.path)}
-                            >
-                                <Copy size={15} />
-                            </button>
-                        </>
-                    )}
-
-                </div>
-
-            </div>
-
-            {/* Recording */}
-
-            <div className="media-card">
-
-                <div className="media-header">
-                    <span>
-                        <Video size={18} />
-                        Screen Recording
-                    </span>
-
-                    <span
-                        className={
-                            recording
-                                ? "recording-status active"
-                                : "recording-status"
-                        }
-                    >
-                        {recording ? "Recording" : "Idle"}
-                    </span>
-
-                </div>
-
-                <div className="record-preview">
-
-                    <Film size={44} />
-
-                    <h4>
-                        {recording
-                            ? "Recording..."
-                            : "Ready"}
-                    </h4>
-
-                </div>
-
-                <div className="action-row">
-
-                    {!recording ? (
-                        <button
-                            className="btn btn-danger"
-                            onClick={startRecording}
-                        >
-                            <Video size={15} />
-                            Start
-                        </button>
-                    ) : (
-                        <button
-                            className="btn btn-primary"
-                            onClick={stopRecording}
-                        >
-                            <Square size={15} />
-                            Stop
-                        </button>
-                    )}
-
-                </div>
-
-            </div>
-
-            {/* History */}
-
-            <div className="media-history">
-
-                <div className="media-header">
-                    <span>Recent Media</span>
-                </div>
-
-                <div className="history-list">
-
-                    {mediaFiles.length === 0 && (
-                        <div className="empty-history">
-                            No screenshots or recordings yet.
-                        </div>
-                    )}
-
-                    {mediaFiles.map(file => (
-
-                        <div
-                            className="history-item"
-                            key={file.id}
-                        >
-
-                            <div className="history-info">
-
-                                {file.type === "image"
-                                    ? <Image size={18}/>
-                                    : <Film size={18}/>
-                                }
-
-                                <div>
-
-                                    <div className="filename">
-                                        {file.name}
-                                    </div>
-
-                                    <div className="date">
-                                        {file.time}
-                                    </div>
-
-                                </div>
-
-                            </div>
-
-                            <div className="history-actions">
-
-                                <button
-                                    className="icon-btn"
-                                    onClick={() => downloadMedia(file)}
-                                >
-                                    <Download size={16}/>
+                            {screenshots.length > 0 && (
+                                <button className="btn btn-outline" onClick={downloadAllScreenshots}>
+                                    <Download size={16} /> Download All ({screenshots.length})
                                 </button>
-
-                                <button
-                                    className="icon-btn"
-                                    onClick={() => deleteMedia(file)}
-                                >
-                                    <Trash2 size={16}/>
-                                </button>
-
-                            </div>
-
+                            )}
                         </div>
 
-                    ))}
+                        {screenshots.length === 0 ? (
+                            <div className="empty-state">
+                                <ImageIcon size={48} className="empty-icon" />
+                                <h3>No screenshots yet</h3>
+                                <p>Click the capture button to take a screenshot of the device screen.</p>
+                            </div>
+                        ) : (
+                            <div className="screenshot-grid">
+                                {screenshots.map((file) => (
+                                    <div key={file.id} className="screenshot-card">
+                                        <div className="screenshot-img-wrapper">
+                                            <img src={file.url} alt={file.name} />
+                                            <div className="screenshot-overlay">
+                                                <button className="icon-btn-round" onClick={() => downloadMedia(file)} title="Download">
+                                                    <Download size={18} />
+                                                </button>
+                                                <button className="icon-btn-round danger" onClick={() => deleteMedia(file)} title="Delete">
+                                                    <Trash2 size={18} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div className="screenshot-info">
+                                            <span className="screenshot-name" title={file.name}>{file.name}</span>
+                                            <span className="screenshot-time">{file.time}</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
 
-                </div>
+                {subTab === "recordings" && (
+                    <div className="recordings-view">
+                        <div className="media-toolbar">
+                            {!recording ? (
+                                <button className="btn btn-danger" onClick={startRecording}>
+                                    <Video size={16} /> Start Recording
+                                </button>
+                            ) : (
+                                <button className="btn btn-primary pulse-btn" onClick={stopRecording}>
+                                    <Square size={16} /> Stop Recording
+                                </button>
+                            )}
 
+                            {recordings.length > 0 && (
+                                <button className="btn btn-outline" onClick={downloadAllRecordings}>
+                                    <Download size={16} /> Download All ({recordings.length})
+                                </button>
+                            )}
+                        </div>
+
+                        {recordings.length === 0 ? (
+                            <div className="empty-state">
+                                <Film size={48} className="empty-icon" />
+                                <h3>No recordings yet</h3>
+                                <p>Click start recording to capture a video of the device screen.</p>
+                            </div>
+                        ) : (
+                            <div className="recording-list">
+                                {recordings.map((file) => (
+                                    <div key={file.id} className="recording-item">
+                                        <div className="recording-icon">
+                                            <Film size={24} />
+                                        </div>
+                                        <div className="recording-details">
+                                            <span className="recording-name">{file.name}</span>
+                                            <span className="recording-time">{file.time}</span>
+                                        </div>
+                                        <div className="recording-actions">
+                                            <button className="icon-btn-flat" onClick={() => downloadMedia(file)}>
+                                                <Download size={18} />
+                                            </button>
+                                            <button className="icon-btn-flat danger" onClick={() => deleteMedia(file)}>
+                                                <Trash2 size={18} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
-
         </div>
     );
 }

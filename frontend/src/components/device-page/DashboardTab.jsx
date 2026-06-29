@@ -71,6 +71,7 @@ const appShortcuts = [
 
 function DashboardTab(props) {
   const {
+    device,
     cardOrder,
     draggedCardIndex,
     onCardDragStart,
@@ -156,6 +157,7 @@ function DashboardTab(props) {
           </div>
         );
       case 'navigation':
+        const browsers = device?.installed_browsers || [];
         return (
           <div key={id} className="dashboard-card" {...dragProps}>
             <div className="card-header">
@@ -181,12 +183,43 @@ function DashboardTab(props) {
                 </button>
               </div>
               <div className="browser-icons">
-                <button title="Chrome" onClick={() => execShell(`am start -n com.android.chrome/com.google.android.apps.chrome.Main -d "${navUrl || 'https://google.com'}"`)}>
-                  <MonitorPlay size={16} color="#60a5fa" />
-                </button>
-                <button title="Browser" onClick={() => execShell(`am start -a android.intent.action.VIEW -d "${navUrl || 'https://google.com'}"`)}>
-                  <Globe size={16} color="#34d399" />
-                </button>
+                {browsers.length === 0 ? (
+                  <div style={{ fontSize: '12px', color: 'var(--color-fg-muted)' }}>No browsers detected</div>
+                ) : (
+                  browsers.map((pkg) => {
+                    let Icon = Globe;
+                    let color = '#34d399';
+                    let name = pkg.split('.').pop() || 'Browser';
+                    
+                    if (pkg.includes('chrome')) {
+                      Icon = MonitorPlay;
+                      color = '#60a5fa';
+                      name = 'Chrome';
+                    } else if (pkg.includes('firefox')) {
+                      color = '#fb923c';
+                      name = 'Firefox';
+                    } else if (pkg.includes('edge')) {
+                      color = '#38bdf8';
+                      name = 'Edge';
+                    } else if (pkg.includes('opera')) {
+                      color = '#ef4444';
+                      name = 'Opera';
+                    }
+                    
+                    // Capitalize name
+                    name = name.charAt(0).toUpperCase() + name.slice(1);
+
+                    return (
+                      <button 
+                        key={pkg}
+                        title={name} 
+                        onClick={() => execShell(`am start -a android.intent.action.VIEW -d "${navUrl || 'https://google.com'}" -p ${pkg}`)}
+                      >
+                        <Icon size={16} color={color} />
+                      </button>
+                    );
+                  })
+                )}
               </div>
             </div>
           </div>

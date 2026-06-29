@@ -12,12 +12,7 @@ function DeviceCard({
   device,
   onClaim,
   onViewStream,
-  onRelease,
-  draggable,
-  onDragStart,
-  onDragOver,
-  onDragEnd,
-  isDragging
+  onRelease
 }) {
   const getStatusClass = (status) => {
     switch (status?.toLowerCase()) {
@@ -41,12 +36,8 @@ function DeviceCard({
 
   return (
     <div
-      className={`device-card-minimal ${device.status?.toLowerCase()} ${isDragging ? 'dragging' : ''}`}
+      className={`device-card-minimal ${device.status?.toLowerCase()}`}
       onClick={handleCardClick}
-      draggable={draggable}
-      onDragStart={onDragStart}
-      onDragOver={onDragOver}
-      onDragEnd={onDragEnd}
     >
       <div className="card-top-bar">
         <span className="card-serial">{device.serial}</span>

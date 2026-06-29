@@ -329,9 +329,9 @@ func (s *Server) getDevicesList() ([]DeviceJSON, error) {
 		       file_system, installed_browsers
 		FROM devices
 		ORDER BY CASE status
-		    WHEN 'idle' THEN 1
-		    WHEN 'claimed' THEN 2
-		    WHEN 'busy' THEN 2
+		    WHEN 'claimed' THEN 1
+		    WHEN 'busy' THEN 1
+		    WHEN 'idle' THEN 2
 		    WHEN 'offline' THEN 3
 		    ELSE 4
 		END, connected_at DESC`)

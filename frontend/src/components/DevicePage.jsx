@@ -19,6 +19,98 @@ function DevicePage({ device, onBack, onRelease }) {
   const [shellCmd, setShellCmd] = useState('');
   const [navUrl, setNavUrl] = useState('');
 
+  // Media (screenshot/recording) state
+  const [screenshot, setScreenshot] = useState(null);
+  const [recording, setRecording] = useState(false);
+  const [mediaFiles, setMediaFiles] = useState([]);
+  const mediaRecorderRef = useRef(null);
+  const recordedChunksRef = useRef([]);
+
+  const takeScreenshot = () => {
+    if (!canvasRef.current) return;
+    const url = canvasRef.current.toDataURL('image/jpeg', 0.9);
+    const newMedia = {
+      id: Date.now(),
+      type: 'image',
+      name: `Screenshot_${new Date().toISOString().replace(/[:.]/g, '-')}.jpg`,
+      time: new Date().toLocaleString(),
+      url: url,
+    };
+    setScreenshot(newMedia);
+    setMediaFiles(prev => [newMedia, ...prev]);
+  };
+
+  const startRecording = () => {
+    if (!canvasRef.current) return;
+    try {
+      const stream = canvasRef.current.captureStream(30);
+      let options = { mimeType: 'video/webm;codecs=vp9' };
+      if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+        options = { mimeType: 'video/webm' };
+      }
+      const recorder = new MediaRecorder(stream, options);
+      recordedChunksRef.current = [];
+      
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          recordedChunksRef.current.push(e.data);
+        }
+      };
+      
+      recorder.onstop = () => {
+        const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        const newMedia = {
+          id: Date.now(),
+          type: 'video',
+          name: `Recording_${new Date().toISOString().replace(/[:.]/g, '-')}.webm`,
+          time: new Date().toLocaleString(),
+          url: url,
+          blob: blob
+        };
+        setMediaFiles(prev => [newMedia, ...prev]);
+        setRecording(false);
+      };
+      
+      recorder.start();
+      mediaRecorderRef.current = recorder;
+      setRecording(true);
+    } catch (e) {
+      console.error("Failed to start recording:", e);
+      alert("Screen recording is not supported in this browser.");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+  };
+
+  const downloadMedia = (file) => {
+    const a = document.createElement('a');
+    a.href = file.url;
+    a.download = file.name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  const deleteMedia = (file) => {
+    setMediaFiles(prev => prev.filter(m => m.id !== file.id));
+    if (screenshot && screenshot.id === file.id) {
+      setScreenshot(null);
+    }
+  };
+
+  const refreshMedia = () => {
+    // Client-side only
+  };
+
+  const copyPath = (path) => {
+    navigator.clipboard.writeText(path || '');
+  };
+
   const COORDINATOR_API = import.meta.env.VITE_COORDINATOR_API || `${window.location.protocol}//${window.location.hostname}:9002`;
 
   const execShell = async (command) => {
@@ -318,6 +410,7 @@ function DevicePage({ device, onBack, onRelease }) {
 
   const handleMouseDown = (e) => {
     e.preventDefault();
+    if (canvasRef.current) canvasRef.current.focus();
     isDragging.current = true;
     const { x, y } = getVideoNormCoords(e);
     sendTouchEvent(0, x, y, e.button, e.buttons, 1.0, -1);
@@ -748,6 +841,7 @@ function DevicePage({ device, onBack, onRelease }) {
         <div className="tab-content">
           {activeTab === 'dashboard' && (
             <DashboardTab
+              device={device}
               cardOrder={cardOrder}
               draggedCardIndex={draggedCardIndex}
               onCardDragStart={handleCardDragStart}
@@ -777,10 +871,16 @@ function DevicePage({ device, onBack, onRelease }) {
 
           {activeTab === 'media' && (
             <MediaTab
-              icon={Camera}
-              title="Media Gallery"
-              description="View screenshots and screen recordings from this device."
-              colorClass="color-blue"
+              screenshot={screenshot}
+              recording={recording}
+              mediaFiles={mediaFiles}
+              takeScreenshot={takeScreenshot}
+              startRecording={startRecording}
+              stopRecording={stopRecording}
+              refreshMedia={refreshMedia}
+              downloadMedia={downloadMedia}
+              deleteMedia={deleteMedia}
+              copyPath={copyPath}
             />
           )}
 
