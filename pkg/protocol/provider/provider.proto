@@ -28,6 +28,9 @@ service ProviderService {
 
   // ControlDevice opens a bidirectional channel for touch, key, and command events.
   rpc ControlDevice(stream ControlRequest) returns (stream ControlResponse);
+
+  // ExecuteScript runs an automation script on a specific device.
+  rpc ExecuteScript(ExecuteScriptRequest) returns (ExecuteScriptResponse);
 }
 
 message HealthCheckRequest {}
@@ -144,4 +147,15 @@ message ShellCommandRequest {
 message ShellCommandResponse {
   string output = 1;
   int32 exit_code = 2;
+}
+
+message ExecuteScriptRequest {
+  string serial = 1;
+  string script_yaml = 2;
+}
+
+message ExecuteScriptResponse {
+  bool success = 1;
+  string error = 2;
+  string report_json = 3;
 }

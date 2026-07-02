@@ -7,12 +7,36 @@ import FilesTab from './device-page/FilesTab';
 import MediaTab from './device-page/MediaTab';
 import InfoTab from './device-page/InfoTab';
 import PlaceholderTab from './device-page/PlaceholderTab';
+import AutomationTab from './device-page/AutomationTab';
 function DevicePage({ device, onBack, onRelease }) {
   const canvasRef = useRef(null);
   const wsRef = useRef(null);
+  const onWSMessageRef = useRef(null);
+  const canvasClickHandlerRef = useRef(null);
   const [errorMsg, setErrorMsg] = useState('');
   const [isPlaying, setIsPlaying] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
+  const autoRefreshTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (autoRefreshTimeoutRef.current) {
+        clearTimeout(autoRefreshTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const triggerAutoRefreshTree = (delay = 800) => {
+    if (activeTab !== 'automation') return;
+    if (autoRefreshTimeoutRef.current) {
+      clearTimeout(autoRefreshTimeoutRef.current);
+    }
+    autoRefreshTimeoutRef.current = setTimeout(() => {
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: 'DUMP_UI' }));
+      }
+    }, delay);
+  };
   const [videoWidth, setVideoWidth] = useState(0);
   const [videoHeight, setVideoHeight] = useState(0);
 
@@ -392,6 +416,7 @@ function DevicePage({ device, onBack, onRelease }) {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ type: 'key', keycode }));
     }
+    triggerAutoRefreshTree(1000);
   };
 
 
@@ -411,8 +436,15 @@ function DevicePage({ device, onBack, onRelease }) {
   const handleMouseDown = (e) => {
     e.preventDefault();
     if (canvasRef.current) canvasRef.current.focus();
-    isDragging.current = true;
+    
     const { x, y } = getVideoNormCoords(e);
+    
+    if (activeTab === 'automation' && canvasClickHandlerRef.current) {
+      canvasClickHandlerRef.current(x, y);
+      return;
+    }
+    
+    isDragging.current = true;
     sendTouchEvent(0, x, y, e.button, e.buttons, 1.0, -1);
   };
 
@@ -428,6 +460,7 @@ function DevicePage({ device, onBack, onRelease }) {
     isDragging.current = false;
     const { x, y } = getVideoNormCoords(e);
     sendTouchEvent(1, x, y, e.button, e.buttons, 0, -1);
+    triggerAutoRefreshTree(800);
   };
 
   const handleContextMenu = (e) => e.preventDefault();
@@ -447,6 +480,7 @@ function DevicePage({ device, onBack, onRelease }) {
       sendControlKey(controlKeyMap[key]);
     } else if (key.length === 1 && wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ type: 'text', text: key }));
+      triggerAutoRefreshTree(800);
     }
   };
 
@@ -454,6 +488,15 @@ function DevicePage({ device, onBack, onRelease }) {
     e.preventDefault();
     if (!canvasRef.current) return;
     const rect = canvasRef.current.getBoundingClientRect();
+    
+    if (activeTab === 'automation' && canvasClickHandlerRef.current && e.changedTouches.length > 0) {
+      const t = e.changedTouches[0];
+      const normX = Math.max(0, Math.min(1, (t.clientX - rect.left) / rect.width));
+      const normY = Math.max(0, Math.min(1, (t.clientY - rect.top) / rect.height));
+      canvasClickHandlerRef.current(normX, normY);
+      return;
+    }
+    
     for (let i = 0; i < e.changedTouches.length; i++) {
       const t = e.changedTouches[i];
       sendTouchEvent(0,
@@ -490,12 +533,14 @@ function DevicePage({ device, onBack, onRelease }) {
         0, 0, 0, t.identifier
       );
     }
+    triggerAutoRefreshTree(800);
   };
 
   const handleWheel = (e) => {
     e.preventDefault();
     const { x, y } = getVideoNormCoords(e);
     sendScrollEvent(x, y, e.deltaY > 0 ? -1 : 1);
+    triggerAutoRefreshTree(1000);
   };
   // ── WebCodecs streaming pipeline ────────────────────────────────────────────
   const videoWidthRef = useRef(0);
@@ -638,7 +683,13 @@ function DevicePage({ device, onBack, onRelease }) {
       };
 
       ws.onmessage = (event) => {
-        if (!active || typeof event.data === 'string') return;
+        if (!active) return;
+        if (typeof event.data === 'string') {
+          if (onWSMessageRef.current) {
+            onWSMessageRef.current(event.data);
+          }
+          return;
+        }
         const chunk = new Uint8Array(event.data);
 
         if (!decoder || decoder.state === 'closed') {
@@ -803,10 +854,19 @@ function DevicePage({ device, onBack, onRelease }) {
                     cursor: 'crosshair',
                     touchAction: 'none',
                     userSelect: 'none',
-                    outline: 'none',
                   }}
                 />
-
+                <div
+                  id="highlight-overlay"
+                  style={{
+                    display: 'none',
+                    position: 'absolute',
+                    border: '2px solid var(--accent)',
+                    backgroundColor: 'rgba(37, 99, 235, 0.3)',
+                    pointerEvents: 'none',
+                    zIndex: 20
+                  }}
+                ></div>
               </div>
             </div>
           </div>
@@ -861,11 +921,12 @@ function DevicePage({ device, onBack, onRelease }) {
           )}
 
           {activeTab === 'automation' && (
-            <PlaceholderTab
-              icon={WandSparkles}
-              title="Automation Studio"
-              description="Create and run automated test scripts on this device."
-              colorClass="color-cyan"
+            <AutomationTab
+              device={device}
+              coordinatorApi={COORDINATOR_API}
+              deviceWsRef={wsRef}
+              onWSMessageRef={onWSMessageRef}
+              canvasClickHandlerRef={canvasClickHandlerRef}
             />
           )}
 

@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os/exec"
 	"strconv"
+	"strings"
 )
 
 // DeployAgent installs the APK and starts the background service with the correct ADB serial and port
@@ -45,6 +46,34 @@ func DeployAgent(deviceSerial string, port int) error {
 
 	if err := startCmd.Run(); err != nil {
 		return fmt.Errorf("failed to start agent service: %v", err)
+	}
+
+	// 4. Automatically enable Accessibility Service for the Agent
+	slog.Info("adb: Automatically enabling Accessibility Service...", "serial", deviceSerial)
+	getServicesCmd := exec.Command("adb", "-s", deviceSerial, "shell", "settings", "get", "secure", "enabled_accessibility_services")
+	existingOut, err := getServicesCmd.Output()
+	serviceID := "com.protean.agent/com.protean.agent.services.ProteanAccessibilityService"
+
+	if err == nil {
+		existingStr := strings.TrimSpace(string(existingOut))
+		if existingStr == "null" || existingStr == "" {
+			existingStr = serviceID
+		} else if !strings.Contains(existingStr, "com.protean.agent") {
+			existingStr = existingStr + ":" + serviceID
+		}
+
+		setServicesCmd := exec.Command("adb", "-s", deviceSerial, "shell", "settings", "put", "secure", "enabled_accessibility_services", existingStr)
+		if err := setServicesCmd.Run(); err != nil {
+			slog.Warn("adb: failed to enable accessibility service list", "serial", deviceSerial, "err", err)
+		}
+	} else {
+		setServicesCmd := exec.Command("adb", "-s", deviceSerial, "shell", "settings", "put", "secure", "enabled_accessibility_services", serviceID)
+		_ = setServicesCmd.Run()
+	}
+
+	enableAccessibilityCmd := exec.Command("adb", "-s", deviceSerial, "shell", "settings", "put", "secure", "accessibility_enabled", "1")
+	if err := enableAccessibilityCmd.Run(); err != nil {
+		slog.Warn("adb: failed to enable accessibility globally", "serial", deviceSerial, "err", err)
 	}
 
 	slog.Info("adb: ✅ Agent successfully deployed and started!", "serial", deviceSerial)

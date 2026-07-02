@@ -1253,6 +1253,118 @@ func (x *ShellCommandResponse) GetExitCode() int32 {
 	return 0
 }
 
+type ExecuteScriptRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Serial        string                 `protobuf:"bytes,1,opt,name=serial,proto3" json:"serial,omitempty"`
+	ScriptYaml    string                 `protobuf:"bytes,2,opt,name=script_yaml,json=scriptYaml,proto3" json:"script_yaml,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExecuteScriptRequest) Reset() {
+	*x = ExecuteScriptRequest{}
+	mi := &file_pkg_protocol_provider_provider_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExecuteScriptRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExecuteScriptRequest) ProtoMessage() {}
+
+func (x *ExecuteScriptRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_pkg_protocol_provider_provider_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExecuteScriptRequest.ProtoReflect.Descriptor instead.
+func (*ExecuteScriptRequest) Descriptor() ([]byte, []int) {
+	return file_pkg_protocol_provider_provider_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *ExecuteScriptRequest) GetSerial() string {
+	if x != nil {
+		return x.Serial
+	}
+	return ""
+}
+
+func (x *ExecuteScriptRequest) GetScriptYaml() string {
+	if x != nil {
+		return x.ScriptYaml
+	}
+	return ""
+}
+
+type ExecuteScriptResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Error         string                 `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	ReportJson    string                 `protobuf:"bytes,3,opt,name=report_json,json=reportJson,proto3" json:"report_json,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExecuteScriptResponse) Reset() {
+	*x = ExecuteScriptResponse{}
+	mi := &file_pkg_protocol_provider_provider_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExecuteScriptResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExecuteScriptResponse) ProtoMessage() {}
+
+func (x *ExecuteScriptResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_pkg_protocol_provider_provider_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExecuteScriptResponse.ProtoReflect.Descriptor instead.
+func (*ExecuteScriptResponse) Descriptor() ([]byte, []int) {
+	return file_pkg_protocol_provider_provider_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *ExecuteScriptResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *ExecuteScriptResponse) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+func (x *ExecuteScriptResponse) GetReportJson() string {
+	if x != nil {
+		return x.ReportJson
+	}
+	return ""
+}
+
 var File_pkg_protocol_provider_provider_proto protoreflect.FileDescriptor
 
 const file_pkg_protocol_provider_provider_proto_rawDesc = "" +
@@ -1342,7 +1454,16 @@ const file_pkg_protocol_provider_provider_proto_rawDesc = "" +
 	"\acommand\x18\x01 \x01(\tR\acommand\"K\n" +
 	"\x14ShellCommandResponse\x12\x16\n" +
 	"\x06output\x18\x01 \x01(\tR\x06output\x12\x1b\n" +
-	"\texit_code\x18\x02 \x01(\x05R\bexitCode2\xd4\x03\n" +
+	"\texit_code\x18\x02 \x01(\x05R\bexitCode\"O\n" +
+	"\x14ExecuteScriptRequest\x12\x16\n" +
+	"\x06serial\x18\x01 \x01(\tR\x06serial\x12\x1f\n" +
+	"\vscript_yaml\x18\x02 \x01(\tR\n" +
+	"scriptYaml\"h\n" +
+	"\x15ExecuteScriptResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\x12\x1f\n" +
+	"\vreport_json\x18\x03 \x01(\tR\n" +
+	"reportJson2\xa6\x04\n" +
 	"\x0fProviderService\x12J\n" +
 	"\vHealthCheck\x12\x1c.provider.HealthCheckRequest\x1a\x1d.provider.HealthCheckResponse\x12A\n" +
 	"\n" +
@@ -1350,7 +1471,8 @@ const file_pkg_protocol_provider_provider_proto_rawDesc = "" +
 	"\vListDevices\x12\x1c.provider.ListDevicesRequest\x1a\x1d.provider.ListDevicesResponse\x12J\n" +
 	"\vClaimDevice\x12\x1c.provider.ClaimDeviceRequest\x1a\x1d.provider.ClaimDeviceResponse\x12P\n" +
 	"\rReleaseDevice\x12\x1e.provider.ReleaseDeviceRequest\x1a\x1f.provider.ReleaseDeviceResponse\x12H\n" +
-	"\rControlDevice\x12\x18.provider.ControlRequest\x1a\x19.provider.ControlResponse(\x010\x01B3Z1protean-provider/pkg/protocol/provider;providerpbb\x06proto3"
+	"\rControlDevice\x12\x18.provider.ControlRequest\x1a\x19.provider.ControlResponse(\x010\x01\x12P\n" +
+	"\rExecuteScript\x12\x1e.provider.ExecuteScriptRequest\x1a\x1f.provider.ExecuteScriptResponseB3Z1protean-provider/pkg/protocol/provider;providerpbb\x06proto3"
 
 var (
 	file_pkg_protocol_provider_provider_proto_rawDescOnce sync.Once
@@ -1365,7 +1487,7 @@ func file_pkg_protocol_provider_provider_proto_rawDescGZIP() []byte {
 }
 
 var file_pkg_protocol_provider_provider_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_pkg_protocol_provider_provider_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
+var file_pkg_protocol_provider_provider_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
 var file_pkg_protocol_provider_provider_proto_goTypes = []any{
 	(TouchEvent_Action)(0),        // 0: provider.TouchEvent.Action
 	(KeyEvent_Action)(0),          // 1: provider.KeyEvent.Action
@@ -1388,11 +1510,13 @@ var file_pkg_protocol_provider_provider_proto_goTypes = []any{
 	(*RotateEvent)(nil),           // 18: provider.RotateEvent
 	(*ShellCommandRequest)(nil),   // 19: provider.ShellCommandRequest
 	(*ShellCommandResponse)(nil),  // 20: provider.ShellCommandResponse
-	(*timestamp.Timestamp)(nil),   // 21: google.protobuf.Timestamp
+	(*ExecuteScriptRequest)(nil),  // 21: provider.ExecuteScriptRequest
+	(*ExecuteScriptResponse)(nil), // 22: provider.ExecuteScriptResponse
+	(*timestamp.Timestamp)(nil),   // 23: google.protobuf.Timestamp
 }
 var file_pkg_protocol_provider_provider_proto_depIdxs = []int32{
 	8,  // 0: provider.ListDevicesResponse.devices:type_name -> provider.DeviceProto
-	21, // 1: provider.DeviceProto.connected_at:type_name -> google.protobuf.Timestamp
+	23, // 1: provider.DeviceProto.connected_at:type_name -> google.protobuf.Timestamp
 	15, // 2: provider.ControlRequest.touch:type_name -> provider.TouchEvent
 	16, // 3: provider.ControlRequest.key:type_name -> provider.KeyEvent
 	17, // 4: provider.ControlRequest.text:type_name -> provider.TextEvent
@@ -1407,14 +1531,16 @@ var file_pkg_protocol_provider_provider_proto_depIdxs = []int32{
 	9,  // 13: provider.ProviderService.ClaimDevice:input_type -> provider.ClaimDeviceRequest
 	11, // 14: provider.ProviderService.ReleaseDevice:input_type -> provider.ReleaseDeviceRequest
 	13, // 15: provider.ProviderService.ControlDevice:input_type -> provider.ControlRequest
-	3,  // 16: provider.ProviderService.HealthCheck:output_type -> provider.HealthCheckResponse
-	5,  // 17: provider.ProviderService.GetVersion:output_type -> provider.VersionResponse
-	7,  // 18: provider.ProviderService.ListDevices:output_type -> provider.ListDevicesResponse
-	10, // 19: provider.ProviderService.ClaimDevice:output_type -> provider.ClaimDeviceResponse
-	12, // 20: provider.ProviderService.ReleaseDevice:output_type -> provider.ReleaseDeviceResponse
-	14, // 21: provider.ProviderService.ControlDevice:output_type -> provider.ControlResponse
-	16, // [16:22] is the sub-list for method output_type
-	10, // [10:16] is the sub-list for method input_type
+	21, // 16: provider.ProviderService.ExecuteScript:input_type -> provider.ExecuteScriptRequest
+	3,  // 17: provider.ProviderService.HealthCheck:output_type -> provider.HealthCheckResponse
+	5,  // 18: provider.ProviderService.GetVersion:output_type -> provider.VersionResponse
+	7,  // 19: provider.ProviderService.ListDevices:output_type -> provider.ListDevicesResponse
+	10, // 20: provider.ProviderService.ClaimDevice:output_type -> provider.ClaimDeviceResponse
+	12, // 21: provider.ProviderService.ReleaseDevice:output_type -> provider.ReleaseDeviceResponse
+	14, // 22: provider.ProviderService.ControlDevice:output_type -> provider.ControlResponse
+	22, // 23: provider.ProviderService.ExecuteScript:output_type -> provider.ExecuteScriptResponse
+	17, // [17:24] is the sub-list for method output_type
+	10, // [10:17] is the sub-list for method input_type
 	10, // [10:10] is the sub-list for extension type_name
 	10, // [10:10] is the sub-list for extension extendee
 	0,  // [0:10] is the sub-list for field type_name
@@ -1441,7 +1567,7 @@ func file_pkg_protocol_provider_provider_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_pkg_protocol_provider_provider_proto_rawDesc), len(file_pkg_protocol_provider_provider_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   19,
+			NumMessages:   21,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

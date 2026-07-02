@@ -13,6 +13,7 @@ import (
 	"protean-provider/internal/coordinator"
 	"protean-provider/internal/domain"
 	inboundGRPC "protean-provider/internal/grpc"
+	"protean-provider/internal/agent"
 	"protean-provider/internal/registry"
 	"protean-provider/internal/stream"
 	"protean-provider/internal/supervisor"
@@ -83,6 +84,9 @@ func New(cfg *config.Config) (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("app: supervisor: %w", err)
 	}
+	streamMgr.SetAgentProvider(func(serial string) *agent.Agent {
+		return sup.Agent(serial)
+	})
 
 	inboundServer := inboundGRPC.NewServer(cfg, sup, reg)
 

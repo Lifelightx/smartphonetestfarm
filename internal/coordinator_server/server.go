@@ -22,6 +22,8 @@ import (
 
 	pb "protean-provider/pkg/protocol/coordinator"
 	providerpb "protean-provider/pkg/protocol/provider"
+
+	"protean-provider/internal/automation"
 )
 
 type Server struct {
@@ -35,6 +37,7 @@ type Server struct {
 	grpcServer *grpc.Server
 	httpServer *http.Server
 	wsManager  *WSManager
+	scheduler  *automation.Scheduler
 }
 
 func NewServer(cfg Config, db *DB) *Server {
@@ -43,6 +46,7 @@ func NewServer(cfg Config, db *DB) *Server {
 		db:        db,
 		activeHBs: make(map[string]context.CancelFunc),
 		wsManager: NewWSManager(),
+		scheduler: automation.NewScheduler(),
 	}
 }
 
@@ -70,6 +74,11 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/v1/devices", s.handleListDevices)
 	mux.HandleFunc("/api/v1/devices/ws", s.handleWS)
 	mux.HandleFunc("/api/v1/devices/", s.handleDeviceAction)
+	mux.HandleFunc("/api/v1/automation/scripts", s.handleScripts)
+	mux.HandleFunc("/api/v1/automation/scripts/", s.handleScriptByID)
+	mux.HandleFunc("/api/v1/automation/run", s.handleRunScript)
+	mux.HandleFunc("/api/v1/automation/reports", s.handleReports)
+	mux.HandleFunc("/api/v1/automation/reports/", s.handleReportByID)
 
 	s.httpServer = &http.Server{
 		Addr:    fmt.Sprintf(":%d", httpPort),
@@ -92,7 +101,7 @@ func (s *Server) Start() error {
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
@@ -655,4 +664,298 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
+}
+
+func (s *Server) handleScripts(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		list, err := s.db.ListScripts()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(list)
+		return
+	}
+
+	if r.Method == http.MethodPost {
+		var reqBody struct {
+			ID      string `json:"id"`
+			Name    string `json:"name"`
+			Content string `json:"content"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
+			http.Error(w, "invalid request body: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		if reqBody.Name == "" {
+			http.Error(w, "name is required", http.StatusBadRequest)
+			return
+		}
+		if reqBody.Content == "" {
+			http.Error(w, "content is required", http.StatusBadRequest)
+			return
+		}
+
+		// Validate YAML script structure
+		_, err := automation.ParseScript(strings.NewReader(reqBody.Content))
+		if err != nil {
+			http.Error(w, fmt.Sprintf("invalid script YAML: %v", err), http.StatusBadRequest)
+			return
+		}
+
+		id := reqBody.ID
+		if id == "" {
+			id = uuid.New().String()
+		}
+
+		if err := s.db.SaveScript(id, reqBody.Name, reqBody.Content); err != nil {
+			http.Error(w, "database error: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": true,
+			"id":      id,
+		})
+		return
+	}
+
+	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+}
+
+func (s *Server) handleScriptByID(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimPrefix(r.URL.Path, "/api/v1/automation/scripts/")
+	if id == "" || strings.Contains(id, "/") {
+		http.Error(w, "invalid script ID", http.StatusBadRequest)
+		return
+	}
+
+	if r.Method == http.MethodGet {
+		name, content, err := s.db.GetScript(id)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				http.Error(w, "script not found", http.StatusNotFound)
+				return
+			}
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"id":      id,
+			"name":    name,
+			"content": content,
+		})
+		return
+	}
+
+	if r.Method == http.MethodDelete {
+		if err := s.db.DeleteScript(id); err != nil {
+			http.Error(w, "database error: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": true,
+		})
+		return
+	}
+
+	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+}
+
+func (s *Server) handleRunScript(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var reqBody struct {
+		ScriptID      string   `json:"script_id"`
+		DeviceSerials []string `json:"device_serials"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
+		http.Error(w, "invalid request body: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if reqBody.ScriptID == "" {
+		http.Error(w, "script_id is required", http.StatusBadRequest)
+		return
+	}
+	if len(reqBody.DeviceSerials) == 0 {
+		http.Error(w, "device_serials array is required and cannot be empty", http.StatusBadRequest)
+		return
+	}
+
+	// Fetch script
+	scriptName, scriptContent, err := s.db.GetScript(reqBody.ScriptID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			http.Error(w, "script not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Parse script structure to pass to Tasks
+	script, err := automation.ParseScript(strings.NewReader(scriptContent))
+	if err != nil {
+		http.Error(w, fmt.Sprintf("failed to parse retrieved script YAML: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// Build tasks
+	tasks := make([]automation.Task, len(reqBody.DeviceSerials))
+	for i, serial := range reqBody.DeviceSerials {
+		tasks[i] = automation.Task{
+			Serial: serial,
+			Script: script,
+			ExecuteFn: func(ctx context.Context, taskSerial string, taskScript *automation.Script) (*automation.Report, error) {
+				providerIP, _, err := s.db.GetDeviceProvider(taskSerial)
+				if err != nil {
+					return nil, fmt.Errorf("failed to locate provider for device %s: %w", taskSerial, err)
+				}
+
+				pClient, conn, err := s.getProviderClient(providerIP, 9091)
+				if err != nil {
+					return nil, fmt.Errorf("failed to dial provider %s: %w", providerIP, err)
+				}
+				defer conn.Close()
+
+				resp, err := pClient.ExecuteScript(ctx, &providerpb.ExecuteScriptRequest{
+					Serial:     taskSerial,
+					ScriptYaml: scriptContent,
+				})
+				if err != nil {
+					return nil, fmt.Errorf("execute script RPC failed: %w", err)
+				}
+
+				if !resp.Success && resp.ReportJson == "" {
+					return nil, fmt.Errorf("execution error: %s", resp.Error)
+				}
+
+				var rep automation.Report
+				if err := json.Unmarshal([]byte(resp.ReportJson), &rep); err != nil {
+					return nil, fmt.Errorf("failed to unmarshal report json: %w", err)
+				}
+
+				return &rep, nil
+			},
+		}
+	}
+
+	// Run parallel execution
+	slog.Info("coordinator: triggering parallel script run", "script_id", reqBody.ScriptID, "name", scriptName, "devices", len(reqBody.DeviceSerials))
+	taskResults := s.scheduler.RunParallel(r.Context(), tasks)
+
+	// Process results, save reports to database
+	type RunResultJSON struct {
+		Serial     string `json:"serial"`
+		ReportID   string `json:"report_id"`
+		Success    bool   `json:"success"`
+		DurationMs int64  `json:"duration_ms"`
+		Error      string `json:"error,omitempty"`
+	}
+
+	results := make([]RunResultJSON, len(taskResults))
+	for i, res := range taskResults {
+		reportID := uuid.New().String()
+		results[i] = RunResultJSON{
+			Serial:   res.Serial,
+			ReportID: reportID,
+		}
+
+		if res.Err != nil {
+			results[i].Success = false
+			results[i].Error = res.Err.Error()
+
+			// Save failed placeholder report
+			now := time.Now()
+			placeholderReport := &automation.Report{
+				StartTime: now,
+				EndTime:   now,
+				Success:   false,
+				Results:   []automation.StepResult{},
+			}
+			repBytes, _ := json.Marshal(placeholderReport)
+			_ = s.db.SaveReport(reportID, reqBody.ScriptID, res.Serial, false, now, now, string(repBytes))
+		} else {
+			results[i].Success = res.Report.Success
+			results[i].DurationMs = res.Report.DurationMs
+			if !res.Report.Success {
+				// Find error message from step results if available
+				for _, stepRes := range res.Report.Results {
+					if !stepRes.Success && stepRes.Error != "" {
+						results[i].Error = stepRes.Error
+						break
+					}
+				}
+			}
+
+			repBytes, _ := json.Marshal(res.Report)
+			_ = s.db.SaveReport(reportID, reqBody.ScriptID, res.Serial, res.Report.Success, res.Report.StartTime, res.Report.EndTime, string(repBytes))
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"results": results,
+	})
+}
+
+func (s *Server) handleReports(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	list, err := s.db.ListReports()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(list)
+}
+
+func (s *Server) handleReportByID(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimPrefix(r.URL.Path, "/api/v1/automation/reports/")
+	if id == "" || strings.Contains(id, "/") {
+		http.Error(w, "invalid report ID", http.StatusBadRequest)
+		return
+	}
+
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	scriptID, serial, success, startTime, endTime, resultsJSON, err := s.db.GetReport(id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			http.Error(w, "report not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"id":         id,
+		"script_id":  scriptID,
+		"serial":     serial,
+		"success":    success,
+		"start_time": startTime,
+		"end_time":   endTime,
+		"results":    json.RawMessage(resultsJSON),
+	})
 }

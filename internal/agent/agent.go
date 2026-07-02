@@ -23,6 +23,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 
 	"protean-provider/internal/adb"
@@ -59,6 +60,9 @@ type Agent struct {
 	// StateUpdates receives periodic device state snapshots (battery, network, etc.)
 	// Consumers should drain this channel; it is closed when the agent stops.
 	StateUpdates chan *domain.Device
+
+	pendingMu sync.Mutex
+	pending   map[string]chan []byte // command ID -> channel for response payload
 }
 
 // New creates an Agent for the given device. Call Run to start it.
@@ -70,6 +74,7 @@ func New(device *domain.Device, port int, adbClient adb.Client) *Agent {
 		device:       device,
 		StateUpdates: make(chan *domain.Device, 4),
 		done:         make(chan struct{}),
+		pending:      make(map[string]chan []byte),
 	}
 }
 
@@ -169,6 +174,26 @@ func (a *Agent) handleIncomingEvent(data []byte) {
 	}
 	if err := json.Unmarshal(data, &event); err != nil {
 		return
+	}
+
+	if strings.HasSuffix(event.Type, "_RESPONSE") {
+		var resp struct {
+			ID string `json:"id"`
+		}
+		if err := json.Unmarshal(event.Payload, &resp); err == nil && resp.ID != "" {
+			a.pendingMu.Lock()
+			ch, ok := a.pending[resp.ID]
+			if ok {
+				delete(a.pending, resp.ID)
+			}
+			a.pendingMu.Unlock()
+			if ok {
+				select {
+				case ch <- event.Payload:
+				default:
+				}
+			}
+		}
 	}
 
 	a.mu.Lock()
@@ -356,4 +381,74 @@ func (a *Agent) ShellWithExitCode(ctx context.Context, cmd string) (CommandResul
 	}
 	clean, code := parseExitCode(result.Output)
 	return CommandResult{Output: clean, ExitCode: code}, nil
+}
+
+// SendCommand sends a command to the agent on the device via WebSocket and waits for a response.
+func (a *Agent) SendCommand(ctx context.Context, command string, payload interface{}, timeout time.Duration) ([]byte, error) {
+	a.mu.RLock()
+	ws := a.wsConn
+	stopped := a.stopped
+	a.mu.RUnlock()
+
+	if stopped {
+		return nil, fmt.Errorf("agent stopped")
+	}
+	if ws == nil {
+		return nil, fmt.Errorf("agent WebSocket connection not active")
+	}
+
+	cmdID := uuid.New().String()
+	
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("marshal payload: %w", err)
+	}
+
+	cmdMsg := struct {
+		ID      string          `json:"id"`
+		Command string          `json:"command"`
+		Payload json.RawMessage `json:"payload"`
+	}{
+		ID:      cmdID,
+		Command: command,
+		Payload: payloadBytes,
+	}
+
+	msgBytes, err := json.Marshal(cmdMsg)
+	if err != nil {
+		return nil, fmt.Errorf("marshal command message: %w", err)
+	}
+
+	ch := make(chan []byte, 1)
+
+	a.pendingMu.Lock()
+	a.pending[cmdID] = ch
+	a.pendingMu.Unlock()
+
+	defer func() {
+		a.pendingMu.Lock()
+		delete(a.pending, cmdID)
+		a.pendingMu.Unlock()
+	}()
+
+	a.mu.Lock()
+	if a.wsConn == nil {
+		a.mu.Unlock()
+		return nil, fmt.Errorf("agent WebSocket disconnected")
+	}
+	err = a.wsConn.WriteMessage(websocket.TextMessage, msgBytes)
+	a.mu.Unlock()
+
+	if err != nil {
+		return nil, fmt.Errorf("websocket write: %w", err)
+	}
+
+	select {
+	case responsePayload := <-ch:
+		return responsePayload, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-time.After(timeout):
+		return nil, fmt.Errorf("command %s timeout after %v", command, timeout)
+	}
 }

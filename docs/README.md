@@ -20,6 +20,7 @@ This folder contains the full technical documentation for building the **Protean
 | [10_deployment.md](./10_deployment.md) | Dockerfile, systemd, CI/CD pipeline |
 | [11_error_handling.md](./11_error_handling.md) | Error scenarios and recovery strategies |
 | [12_dependencies.md](./12_dependencies.md) | All Go packages with justification |
+| [13_automation_framework.md](./13_automation_framework.md) | Native Automation Framework (No Appium) & Phase 1 |
 
 ---
 

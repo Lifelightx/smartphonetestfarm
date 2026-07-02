@@ -9,11 +9,14 @@ import (
 	"strings"
 	"time"
 
+	"encoding/json"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"protean-provider/internal/agent"
+	"protean-provider/internal/automation"
 	"protean-provider/internal/config"
 	"protean-provider/internal/domain"
 	"protean-provider/internal/supervisor"
@@ -22,6 +25,7 @@ import (
 
 // Server implements the provider's inbound gRPC API.
 type Server struct {
+	provider.UnimplementedProviderServiceServer
 	cfg        *config.Config
 	sup        *supervisor.Supervisor
 	registry   domain.DeviceRegistry
@@ -323,4 +327,52 @@ func abs(v int32) int32 {
 		return -v
 	}
 	return v
+}
+
+// ExecuteScript runs an automation script on a specific device.
+func (s *Server) ExecuteScript(ctx context.Context, req *provider.ExecuteScriptRequest) (*provider.ExecuteScriptResponse, error) {
+	if req.Serial == "" {
+		return nil, status.Error(codes.InvalidArgument, "serial is required")
+	}
+	if req.ScriptYaml == "" {
+		return nil, status.Error(codes.InvalidArgument, "script_yaml is required")
+	}
+
+	slog.Info("grpc: execute script request", "serial", req.Serial)
+
+	script, err := automation.ParseScript(strings.NewReader(req.ScriptYaml))
+	if err != nil {
+		return &provider.ExecuteScriptResponse{
+			Success: false,
+			Error:   fmt.Sprintf("parse script: %v", err),
+		}, nil
+	}
+
+	var agt *agent.Agent
+	if s.sup != nil {
+		agt = s.sup.Agent(req.Serial)
+	}
+	driver := automation.NewAndroidDriver(req.Serial, agt)
+	runner := automation.NewRunner(driver)
+
+	report, err := runner.Run(ctx, script)
+	if err != nil {
+		return &provider.ExecuteScriptResponse{
+			Success: false,
+			Error:   fmt.Sprintf("run script: %v", err),
+		}, nil
+	}
+
+	reportBytes, err := json.Marshal(report)
+	if err != nil {
+		return &provider.ExecuteScriptResponse{
+			Success: false,
+			Error:   fmt.Sprintf("marshal report: %v", err),
+		}, nil
+	}
+
+	return &provider.ExecuteScriptResponse{
+		Success:    report.Success,
+		ReportJson: string(reportBytes),
+	}, nil
 }

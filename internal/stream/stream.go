@@ -15,6 +15,8 @@ import (
 	"sync"
 	"time"
 
+	"protean-provider/internal/agent"
+	"protean-provider/internal/automation"
 	"protean-provider/internal/config"
 	"protean-provider/internal/domain"
 )
@@ -28,6 +30,8 @@ type Manager struct {
 	registry domain.DeviceRegistry
 	mu       sync.Mutex
 	streams  map[string]*streamState
+	recorder *automation.RecorderManager
+	agentFn  func(serial string) *agent.Agent
 }
 
 // NewManager creates a new stream Manager.
@@ -36,7 +40,20 @@ func NewManager(cfg *config.Config, registry domain.DeviceRegistry) *Manager {
 		cfg:      cfg,
 		registry: registry,
 		streams:  make(map[string]*streamState),
+		recorder: automation.NewRecorderManager(),
 	}
+}
+
+// SetAgentProvider registers a callback function to lookup the active agent.
+func (m *Manager) SetAgentProvider(fn func(serial string) *agent.Agent) {
+	m.agentFn = fn
+}
+
+type gestureState struct {
+	startX    float64
+	startY    float64
+	startTime time.Time
+	isSwipe   bool
 }
 
 // streamState holds all live state for one device capture session.
@@ -57,6 +74,9 @@ type streamState struct {
 	// clients: each connected client gets its own buffered channel of chunks.
 	clientsMu sync.RWMutex
 	clients   map[chan<- []byte]struct{}
+
+	gestureMu sync.Mutex
+	gesture   gestureState
 }
 
 func (s *streamState) addClientAndGetCache(ch chan<- []byte) [][]byte {

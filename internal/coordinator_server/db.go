@@ -75,6 +75,21 @@ func (d *DB) migrate() error {
 		`ALTER TABLE devices ADD COLUMN IF NOT EXISTS stream_port INT NOT NULL DEFAULT 0;`,
 		`ALTER TABLE devices ADD COLUMN IF NOT EXISTS file_system JSON;`,
 		`ALTER TABLE devices ADD COLUMN IF NOT EXISTS installed_browsers JSON;`,
+		`CREATE TABLE IF NOT EXISTS automation_scripts (
+			id UUID PRIMARY KEY,
+			name TEXT NOT NULL,
+			content TEXT NOT NULL,
+			created_at TIMESTAMP NOT NULL DEFAULT NOW()
+		);`,
+		`CREATE TABLE IF NOT EXISTS automation_reports (
+			id UUID PRIMARY KEY,
+			script_id UUID REFERENCES automation_scripts(id) ON DELETE CASCADE,
+			serial TEXT NOT NULL REFERENCES devices(serial) ON DELETE CASCADE,
+			success BOOLEAN NOT NULL,
+			start_time TIMESTAMP NOT NULL,
+			end_time TIMESTAMP NOT NULL,
+			results JSON NOT NULL
+		);`,
 	}
 
 	for _, q := range queries {
@@ -228,3 +243,105 @@ func (d *DB) GetDeviceProvider(serial string) (string, string, error) {
 	}
 	return ip, ip, nil
 }
+
+// SaveScript saves or updates an automation script in the database.
+func (d *DB) SaveScript(id, name, content string) error {
+	query := `
+		INSERT INTO automation_scripts (id, name, content, created_at)
+		VALUES ($1, $2, $3, NOW())
+		ON CONFLICT (id) DO UPDATE SET
+			name = EXCLUDED.name,
+			content = EXCLUDED.content;`
+	_, err := d.db.Exec(query, id, name, content)
+	return err
+}
+
+// GetScript retrieves an automation script by ID.
+func (d *DB) GetScript(id string) (name, content string, err error) {
+	query := `SELECT name, content FROM automation_scripts WHERE id = $1`
+	err = d.db.QueryRow(query, id).Scan(&name, &content)
+	return
+}
+
+// DeleteScript deletes an automation script by ID.
+func (d *DB) DeleteScript(id string) error {
+	query := `DELETE FROM automation_scripts WHERE id = $1`
+	_, err := d.db.Exec(query, id)
+	return err
+}
+
+// SaveReport stores a new execution report in the database.
+func (d *DB) SaveReport(id, scriptID, serial string, success bool, startTime, endTime time.Time, resultsJSON string) error {
+	query := `
+		INSERT INTO automation_reports (id, script_id, serial, success, start_time, end_time, results)
+		VALUES ($1, $2, $3, $4, $5, $6, CAST($7 AS JSON))`
+	_, err := d.db.Exec(query, id, scriptID, serial, success, startTime, endTime, resultsJSON)
+	return err
+}
+
+// GetReport retrieves an execution report by ID.
+func (d *DB) GetReport(id string) (scriptID, serial string, success bool, startTime, endTime time.Time, resultsJSON string, err error) {
+	query := `SELECT script_id, serial, success, start_time, end_time, results FROM automation_reports WHERE id = $1`
+	err = d.db.QueryRow(query, id).Scan(&scriptID, &serial, &success, &startTime, &endTime, &resultsJSON)
+	return
+}
+
+type ScriptDB struct {
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	Content   string    `json:"content"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+func (d *DB) ListScripts() ([]ScriptDB, error) {
+	rows, err := d.db.Query(`SELECT id, name, content, created_at FROM automation_scripts ORDER BY created_at DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var list []ScriptDB
+	for rows.Next() {
+		var s ScriptDB
+		if err := rows.Scan(&s.ID, &s.Name, &s.Content, &s.CreatedAt); err != nil {
+			return nil, err
+		}
+		list = append(list, s)
+	}
+	if list == nil {
+		list = []ScriptDB{}
+	}
+	return list, nil
+}
+
+type ReportDB struct {
+	ID        string    `json:"id"`
+	ScriptID  string    `json:"script_id"`
+	Serial    string    `json:"serial"`
+	Success   bool      `json:"success"`
+	StartTime time.Time `json:"start_time"`
+	EndTime   time.Time `json:"end_time"`
+	Results   string    `json:"results,omitempty"`
+}
+
+func (d *DB) ListReports() ([]ReportDB, error) {
+	rows, err := d.db.Query(`SELECT id, script_id, serial, success, start_time, end_time, results FROM automation_reports ORDER BY start_time DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var list []ReportDB
+	for rows.Next() {
+		var r ReportDB
+		if err := rows.Scan(&r.ID, &r.ScriptID, &r.Serial, &r.Success, &r.StartTime, &r.EndTime, &r.Results); err != nil {
+			return nil, err
+		}
+		list = append(list, r)
+	}
+	if list == nil {
+		list = []ReportDB{}
+	}
+	return list, nil
+}
+

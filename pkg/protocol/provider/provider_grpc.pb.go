@@ -25,6 +25,7 @@ const (
 	ProviderService_ClaimDevice_FullMethodName   = "/provider.ProviderService/ClaimDevice"
 	ProviderService_ReleaseDevice_FullMethodName = "/provider.ProviderService/ReleaseDevice"
 	ProviderService_ControlDevice_FullMethodName = "/provider.ProviderService/ControlDevice"
+	ProviderService_ExecuteScript_FullMethodName = "/provider.ProviderService/ExecuteScript"
 )
 
 // ProviderServiceClient is the client API for ProviderService service.
@@ -48,6 +49,8 @@ type ProviderServiceClient interface {
 	ReleaseDevice(ctx context.Context, in *ReleaseDeviceRequest, opts ...grpc.CallOption) (*ReleaseDeviceResponse, error)
 	// ControlDevice opens a bidirectional channel for touch, key, and command events.
 	ControlDevice(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ControlRequest, ControlResponse], error)
+	// ExecuteScript runs an automation script on a specific device.
+	ExecuteScript(ctx context.Context, in *ExecuteScriptRequest, opts ...grpc.CallOption) (*ExecuteScriptResponse, error)
 }
 
 type providerServiceClient struct {
@@ -121,8 +124,18 @@ func (c *providerServiceClient) ControlDevice(ctx context.Context, opts ...grpc.
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type ProviderService_ControlDeviceClient = grpc.BidiStreamingClient[ControlRequest, ControlResponse]
 
+func (c *providerServiceClient) ExecuteScript(ctx context.Context, in *ExecuteScriptRequest, opts ...grpc.CallOption) (*ExecuteScriptResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ExecuteScriptResponse)
+	err := c.cc.Invoke(ctx, ProviderService_ExecuteScript_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ProviderServiceServer is the server API for ProviderService service.
-// All implementations should embed UnimplementedProviderServiceServer
+// All implementations must embed UnimplementedProviderServiceServer
 // for forward compatibility.
 //
 // ─────────────────────────────────────────────────────────────────────────────
@@ -142,9 +155,12 @@ type ProviderServiceServer interface {
 	ReleaseDevice(context.Context, *ReleaseDeviceRequest) (*ReleaseDeviceResponse, error)
 	// ControlDevice opens a bidirectional channel for touch, key, and command events.
 	ControlDevice(grpc.BidiStreamingServer[ControlRequest, ControlResponse]) error
+	// ExecuteScript runs an automation script on a specific device.
+	ExecuteScript(context.Context, *ExecuteScriptRequest) (*ExecuteScriptResponse, error)
+	mustEmbedUnimplementedProviderServiceServer()
 }
 
-// UnimplementedProviderServiceServer should be embedded to have
+// UnimplementedProviderServiceServer must be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
@@ -169,7 +185,11 @@ func (UnimplementedProviderServiceServer) ReleaseDevice(context.Context, *Releas
 func (UnimplementedProviderServiceServer) ControlDevice(grpc.BidiStreamingServer[ControlRequest, ControlResponse]) error {
 	return status.Error(codes.Unimplemented, "method ControlDevice not implemented")
 }
-func (UnimplementedProviderServiceServer) testEmbeddedByValue() {}
+func (UnimplementedProviderServiceServer) ExecuteScript(context.Context, *ExecuteScriptRequest) (*ExecuteScriptResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ExecuteScript not implemented")
+}
+func (UnimplementedProviderServiceServer) mustEmbedUnimplementedProviderServiceServer() {}
+func (UnimplementedProviderServiceServer) testEmbeddedByValue()                         {}
 
 // UnsafeProviderServiceServer may be embedded to opt out of forward compatibility for this service.
 // Use of this interface is not recommended, as added methods to ProviderServiceServer will
@@ -286,6 +306,24 @@ func _ProviderService_ControlDevice_Handler(srv interface{}, stream grpc.ServerS
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type ProviderService_ControlDeviceServer = grpc.BidiStreamingServer[ControlRequest, ControlResponse]
 
+func _ProviderService_ExecuteScript_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ExecuteScriptRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProviderServiceServer).ExecuteScript(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProviderService_ExecuteScript_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProviderServiceServer).ExecuteScript(ctx, req.(*ExecuteScriptRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ProviderService_ServiceDesc is the grpc.ServiceDesc for ProviderService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -312,6 +350,10 @@ var ProviderService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ReleaseDevice",
 			Handler:    _ProviderService_ReleaseDevice_Handler,
+		},
+		{
+			MethodName: "ExecuteScript",
+			Handler:    _ProviderService_ExecuteScript_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
