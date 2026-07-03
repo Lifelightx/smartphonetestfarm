@@ -26,13 +26,13 @@ func (c *Client) CreateSession(ctx context.Context) (string, error) {
 	defer c.mu.Unlock()
 	return c.createSessionLocked(ctx)
 }
-
+//ios fps setting
 // createSessionLocked establishes a session. Caller must hold c.mu.Lock().
 func (c *Client) createSessionLocked(ctx context.Context) (string, error) {
 	body := map[string]interface{}{
 		"capabilities": map[string]interface{}{
 			"alwaysMatch": map[string]interface{}{
-				"mjpegServerFramerate": 15,
+				"mjpegServerFramerate": 30,
 				"mjpegScalingFactor":   50,
 			},
 		},
@@ -48,7 +48,7 @@ func (c *Client) createSessionLocked(ctx context.Context) (string, error) {
 	// Update WDA settings to optimize MJPEG stream performance (best-effort)
 	settingsBody := map[string]interface{}{
 		"settings": map[string]interface{}{
-			"mjpegServerScreenshotQuality": 40,
+			"mjpegServerScreenshotQuality": 60,
 			"mjpegScalingFactor":           50,
 		},
 	}

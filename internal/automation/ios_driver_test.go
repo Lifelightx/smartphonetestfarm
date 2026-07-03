@@ -23,9 +23,7 @@ func TestIOSDriver(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		case "/session/wda-session-ios-123/wda/apps/terminate":
 			w.WriteHeader(http.StatusOK)
-		case "/session/wda-session-ios-123/wda/tap":
-			w.WriteHeader(http.StatusOK)
-		case "/session/wda-session-ios-123/wda/dragfromtoforduration":
+		case "/session/wda-session-ios-123/actions":
 			w.WriteHeader(http.StatusOK)
 		case "/session/wda-session-ios-123/wda/keys":
 			w.WriteHeader(http.StatusOK)

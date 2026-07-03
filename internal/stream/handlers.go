@@ -558,11 +558,62 @@ func (m *Manager) handleWS(w http.ResponseWriter, r *http.Request, serial string
 
 			case "key":
 				go func(keycode int) {
-					if keycode == 3 { // Home key
-						ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-						defer cancel()
+					ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+					defer cancel()
+
+					if err := wdaClient.EnsureSession(ctx); err != nil {
+						slog.Error("stream: failed to ensure WDA session for key event", "serial", serial, "err", err)
+						return
+					}
+
+					switch keycode {
+					case 3: // Home key
 						if herr := wdaClient.Request(ctx, "POST", "/wda/homescreen", nil, nil); herr != nil {
 							slog.Warn("stream: ios home gesture failed", "serial", serial, "err", herr)
+						}
+					case 4: // Back button
+						s.gestureMu.Lock()
+						lw, lh := s.logicalWidth, s.logicalHeight
+						s.gestureMu.Unlock()
+						if lw <= 0 || lh <= 0 {
+							if w, h, sizeErr := wdaClient.GetWindowSize(ctx); sizeErr == nil && w > 0 && h > 0 {
+								s.gestureMu.Lock()
+								s.logicalWidth, s.logicalHeight = w, h
+								s.gestureMu.Unlock()
+								lw, lh = w, h
+							} else {
+								lw, lh = 375.0, 812.0
+							}
+						}
+						// Swipe from left edge (e.g. 5 points) to right (e.g. 250 points)
+						if serr := wdaClient.Swipe(ctx, 5.0, lh/2.0, lw*0.7, lh/2.0, 0.4); serr != nil {
+							slog.Warn("stream: ios swipe-back failed", "serial", serial, "err", serr)
+						}
+					case 187: // Recents key (App Switcher)
+						s.gestureMu.Lock()
+						lw, lh := s.logicalWidth, s.logicalHeight
+						s.gestureMu.Unlock()
+						if lw <= 0 || lh <= 0 {
+							if w, h, sizeErr := wdaClient.GetWindowSize(ctx); sizeErr == nil && w > 0 && h > 0 {
+								s.gestureMu.Lock()
+								s.logicalWidth, s.logicalHeight = w, h
+								s.gestureMu.Unlock()
+								lw, lh = w, h
+							} else {
+								lw, lh = 375.0, 812.0
+							}
+						}
+						// Swipe up from bottom and hold to trigger App Switcher
+						if serr := wdaClient.Swipe(ctx, lw/2.0, lh - 5.0, lw/2.0, lh*0.5, 1.0); serr != nil {
+							slog.Warn("stream: ios app-switcher swipe failed", "serial", serial, "err", serr)
+						}
+					case 67: // Backspace
+						if terr := wdaClient.SendKeys(ctx, "\b"); terr != nil {
+							slog.Warn("stream: ios send backspace failed", "serial", serial, "err", terr)
+						}
+					case 66: // Enter
+						if terr := wdaClient.SendKeys(ctx, "\n"); terr != nil {
+							slog.Warn("stream: ios send enter failed", "serial", serial, "err", terr)
 						}
 					}
 				}(ev.Keycode)

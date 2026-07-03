@@ -31,3 +31,8 @@ node_modules
 #
 #   B) Keep it out of git and rely on `make fetch-deps` / CI (current default):
 internal/stream/scrcpy-server.jar
+
+# Local build and run files
+provider
+provider.log
+selfIdentity.plist

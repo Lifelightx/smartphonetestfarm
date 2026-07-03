@@ -564,6 +564,9 @@ function DevicePage({ device, onBack, onRelease }) {
     let active = true;
     let decoder = null;
     let ws = null;
+    // Hoisted here so the cleanup function (returned from useEffect) can access them.
+    const jpegImg = new Image();
+    let objUrl = null;
 
     if (!window.VideoDecoder) {
       setErrorMsg('WebCodecs is not supported in this browser. Ensure you are using a secure context (HTTPS) or accessing via localhost/127.0.0.1.');
@@ -687,6 +690,8 @@ function DevicePage({ device, onBack, onRelease }) {
       let rafScheduled = false;
       let frameCount = 0;
 
+      // jpegImg and objUrl are declared in the outer effect scope so cleanup can access them.
+
       const scheduleJpegRender = (blob, t1, t2, browserRecv) => {
         pendingJpegBlob = blob; // always keep only the latest
         pendingT1 = t1;
@@ -702,40 +707,47 @@ function DevicePage({ device, onBack, onRelease }) {
           const snapBrowserRecv = pendingBrowserRecv;
           pendingJpegBlob = null;
           if (!blobToRender || !active) return;
-          createImageBitmap(blobToRender)
-            .then((bitmap) => {
-              if (!active) { bitmap.close(); return; }
-              const w = bitmap.width;
-              const h = bitmap.height;
-              if (w && h && (w !== videoWidthRef.current || h !== videoHeightRef.current)) {
-                videoWidthRef.current = w;
-                videoHeightRef.current = h;
-                setVideoWidth(w);
-                setVideoHeight(h);
-                setRotation(w > h ? 90 : 0);
-              }
-              const canvas = canvasRef.current;
-              if (canvas) {
-                if (canvas.width !== w || canvas.height !== h) {
-                  canvas.width = w;
-                  canvas.height = h;
-                }
-                canvas.getContext('2d').drawImage(bitmap, 0, 0, w, h);
-              }
-              bitmap.close();
-              setIsPlaying(true);
 
-              const browserDisplay = Date.now();
-              frameCount++;
-              if (frameCount % 60 === 0 && snapT1 > 0) {
-                console.log(
-                  `[LATENCY] Frame #${frameCount} | Provider Ingress: ${snapT1} | ` +
-                  `ProvTransit: ${snapT2 - snapT1}ms | Network: ${snapBrowserRecv - snapT2}ms | ` +
-                  `BrowserRender: ${browserDisplay - snapBrowserRecv}ms | Total: ${browserDisplay - snapT1}ms`
-                );
+          // Revoke the previous object URL to free memory
+          if (objUrl) {
+            URL.revokeObjectURL(objUrl);
+          }
+          objUrl = URL.createObjectURL(blobToRender);
+          jpegImg.src = objUrl;
+
+          // img.decode() resolves in the current rendering cycle — much faster
+          // than createImageBitmap which schedules a new microtask/tick.
+          jpegImg.decode().then(() => {
+            if (!active) return;
+            const w = jpegImg.naturalWidth;
+            const h = jpegImg.naturalHeight;
+            if (w && h && (w !== videoWidthRef.current || h !== videoHeightRef.current)) {
+              videoWidthRef.current = w;
+              videoHeightRef.current = h;
+              setVideoWidth(w);
+              setVideoHeight(h);
+              setRotation(w > h ? 90 : 0);
+            }
+            const canvas = canvasRef.current;
+            if (canvas) {
+              if (canvas.width !== w || canvas.height !== h) {
+                canvas.width = w;
+                canvas.height = h;
               }
-            })
-            .catch((err) => console.warn('createImageBitmap failed:', err));
+              canvas.getContext('2d').drawImage(jpegImg, 0, 0, w, h);
+            }
+            setIsPlaying(true);
+
+            const browserDisplay = Date.now();
+            frameCount++;
+            if (frameCount % 60 === 0 && snapT1 > 0) {
+              console.log(
+                `[LATENCY] Frame #${frameCount} | Provider Ingress: ${snapT1} | ` +
+                `ProvTransit: ${snapT2 - snapT1}ms | Network: ${snapBrowserRecv - snapT2}ms | ` +
+                `BrowserRender: ${browserDisplay - snapBrowserRecv}ms | Total: ${browserDisplay - snapT1}ms`
+              );
+            }
+          }).catch((err) => console.warn('img.decode failed:', err));
         });
       };
 
@@ -877,6 +889,11 @@ function DevicePage({ device, onBack, onRelease }) {
         } catch (e) {
           console.warn('Error closing decoder:', e);
         }
+      }
+      // Clean up any outstanding object URL from the JPEG renderer
+      if (objUrl) {
+        URL.revokeObjectURL(objUrl);
+        objUrl = null;
       }
     };
   }, [wsUrl]);

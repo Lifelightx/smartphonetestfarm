@@ -2,7 +2,6 @@ package wda_test
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -22,15 +21,7 @@ func TestWDA_ClientLifecycle(t *testing.T) {
 			_, _ = w.Write([]byte(`{"value": {"sessionId": "wda-session-123", "capabilities": {}}}`))
 		case "/session/wda-session-123":
 			w.WriteHeader(http.StatusOK)
-		case "/session/wda-session-123/wda/tap":
-			var body map[string]interface{}
-			_ = json.NewDecoder(r.Body).Decode(&body)
-			if body["x"] == 100.0 && body["y"] == 200.0 {
-				w.WriteHeader(http.StatusOK)
-			} else {
-				w.WriteHeader(http.StatusBadRequest)
-			}
-		case "/session/wda-session-123/wda/dragfromtoforduration":
+		case "/session/wda-session-123/actions":
 			w.WriteHeader(http.StatusOK)
 		case "/session/wda-session-123/wda/keys":
 			w.WriteHeader(http.StatusOK)
