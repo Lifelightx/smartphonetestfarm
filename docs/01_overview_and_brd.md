@@ -9,9 +9,9 @@
 
 ## 1. Executive Summary
 
-The **Protean Provider** is a production-grade Go daemon that runs on every lab machine or CI agent where Android devices are physically connected via USB or WiFi-ADB.
+The **Protean Provider** is a production-grade Go daemon that runs on every lab machine or CI agent where Android and iOS devices are physically connected via USB or WiFi-ADB/network.
 
-It is the **edge node** of the Protean device farm platform. Its sole responsibility is to bridge physical Android hardware to the central Protean Coordinator service over a secure gRPC connection.
+It is the **edge node** of the Protean device farm platform. Its sole responsibility is to bridge physical Android and iOS hardware to the central Protean Coordinator service over a secure gRPC connection.
 
 ### What It Does
 
@@ -78,7 +78,7 @@ The existing STF (Smartphone Test Farm) Node.js provider:
 | Device booking logic | `protean-coordinator` |
 | User authentication | `protean-coordinator` / `protean-api` |
 | Appium test execution | `protean-bridge` |
-| iOS / Windows device support | Future scope |
+| Windows device support | Future scope |
 | REST API for external clients | `protean-api` |
 
 ---
@@ -139,6 +139,13 @@ Go Provider
 
 `scrcpy-server.jar` runs in memory via `app_process` — nothing is permanently installed.
 When the provider kills the process, it leaves no trace on the device.
+
+### iOS Support (go-ios & WebDriverAgent)
+
+For iOS, the provider natively manages `go-ios` background processes to communicate with the device.
+- **Screen Streaming**: Fast MJPEG over WebSockets sourced from WebDriverAgent (WDA) running on the device.
+- **Input Control**: Leverages the W3C Actions API provided by WDA to execute highly responsive, low-latency touches, swipes, and keyboard typing.
+- **Metadata**: Uses `go-ios` tools to pull full device profiles (battery, networking, developer disk mounting, etc.) without requiring Xcode or macOS.
 
 ### When You WOULD Need a Custom APK (Future Phase)
 

@@ -1,6 +1,6 @@
 # protean-provider-go — Documentation
 
-This folder contains the full technical documentation for building the **Protean Provider** in Go — a production-grade edge daemon that bridges physical Android devices to the Protean Coordinator over gRPC.
+This folder contains the full technical documentation for building the **Protean Provider** in Go — a production-grade edge daemon that bridges physical Android and iOS devices to the Protean Coordinator over gRPC.
 
 ---
 
