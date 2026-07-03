@@ -16,6 +16,7 @@ function DevicePage({ device, onBack, onRelease }) {
   const [errorMsg, setErrorMsg] = useState('');
   const [isPlaying, setIsPlaying] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [touchIndicator, setTouchIndicator] = useState(null);
   const autoRefreshTimeoutRef = useRef(null);
 
   useEffect(() => {
@@ -444,12 +445,15 @@ function DevicePage({ device, onBack, onRelease }) {
       return;
     }
     
+    setTouchIndicator({ x: x * 100, y: y * 100, id: Date.now() });
     isDragging.current = true;
     sendTouchEvent(0, x, y, e.button, e.buttons, 1.0, -1);
   };
 
   const handleMouseMove = (e) => {
     if (!isDragging.current) return;
+    // iOS JPEG mode: skip MOVE — the backend accumulates gesture state synchronously.
+    if (isIOSStreamRef.current) return;
     e.preventDefault();
     const { x, y } = getVideoNormCoords(e);
     sendTouchEvent(2, x, y, e.button, e.buttons, 1.0, -1);
@@ -499,15 +503,18 @@ function DevicePage({ device, onBack, onRelease }) {
     
     for (let i = 0; i < e.changedTouches.length; i++) {
       const t = e.changedTouches[i];
-      sendTouchEvent(0,
-        Math.max(0, Math.min(1, (t.clientX - rect.left) / rect.width)),
-        Math.max(0, Math.min(1, (t.clientY - rect.top) / rect.height)),
-        0, 0, 1.0, t.identifier
-      );
+      const normX = Math.max(0, Math.min(1, (t.clientX - rect.left) / rect.width));
+      const normY = Math.max(0, Math.min(1, (t.clientY - rect.top) / rect.height));
+      setTouchIndicator({ x: normX * 100, y: normY * 100, id: Date.now() + i });
+      sendTouchEvent(0, normX, normY, 0, 0, 1.0, t.identifier);
     }
   };
 
   const handleTouchMove = (e) => {
+    // iOS streams raw JPEG — MOVE events are accumulated server-side via the
+    // gestureMu state machine. Sending them over WebSocket would only add latency
+    // with zero benefit (the backend ignores MOVE for WDA calls).
+    if (isIOSStreamRef.current) return;
     e.preventDefault();
     if (!canvasRef.current) return;
     const rect = canvasRef.current.getBoundingClientRect();
@@ -542,9 +549,15 @@ function DevicePage({ device, onBack, onRelease }) {
     sendScrollEvent(x, y, e.deltaY > 0 ? -1 : 1);
     triggerAutoRefreshTree(1000);
   };
-  // ── WebCodecs streaming pipeline ────────────────────────────────────────────
+  // ── WebCodecs / JPEG streaming pipeline ────────────────────────────────────
   const videoWidthRef = useRef(0);
   const videoHeightRef = useRef(0);
+  // True if this is an iOS device to skip mouse/touch move events for WDA gesture accumulation.
+  const isIOSStreamRef = useRef(
+    device.model?.toLowerCase().includes('iphone') ||
+    device.model?.toLowerCase().includes('ipad') ||
+    device.serial?.includes('-')
+  );
 
   useEffect(() => {
     if (!wsUrl) return;
@@ -660,6 +673,73 @@ function DevicePage({ device, onBack, onRelease }) {
 
       initDecoder();
 
+      // ── RAF-gated JPEG renderer ─────────────────────────────────────────
+      // Only one rAF is ever scheduled at a time.  When a new JPEG frame
+      // arrives it just REPLACES pendingJpegBlob (latest-wins).  The rAF
+      // callback decodes whichever blob is current when the browser is ready
+      // to paint — all intermediate frames are silently discarded.  This
+      // prevents the async createImageBitmap queue from growing unboundedly
+      // and ensures the canvas always shows the freshest frame.
+      let pendingJpegBlob = null;
+      let pendingT1 = 0;
+      let pendingT2 = 0;
+      let pendingBrowserRecv = 0;
+      let rafScheduled = false;
+      let frameCount = 0;
+
+      const scheduleJpegRender = (blob, t1, t2, browserRecv) => {
+        pendingJpegBlob = blob; // always keep only the latest
+        pendingT1 = t1;
+        pendingT2 = t2;
+        pendingBrowserRecv = browserRecv;
+        if (rafScheduled) return;
+        rafScheduled = true;
+        requestAnimationFrame(() => {
+          rafScheduled = false;
+          const blobToRender = pendingJpegBlob;
+          const snapT1 = pendingT1;
+          const snapT2 = pendingT2;
+          const snapBrowserRecv = pendingBrowserRecv;
+          pendingJpegBlob = null;
+          if (!blobToRender || !active) return;
+          createImageBitmap(blobToRender)
+            .then((bitmap) => {
+              if (!active) { bitmap.close(); return; }
+              const w = bitmap.width;
+              const h = bitmap.height;
+              if (w && h && (w !== videoWidthRef.current || h !== videoHeightRef.current)) {
+                videoWidthRef.current = w;
+                videoHeightRef.current = h;
+                setVideoWidth(w);
+                setVideoHeight(h);
+                setRotation(w > h ? 90 : 0);
+              }
+              const canvas = canvasRef.current;
+              if (canvas) {
+                if (canvas.width !== w || canvas.height !== h) {
+                  canvas.width = w;
+                  canvas.height = h;
+                }
+                canvas.getContext('2d').drawImage(bitmap, 0, 0, w, h);
+              }
+              bitmap.close();
+              setIsPlaying(true);
+
+              const browserDisplay = Date.now();
+              frameCount++;
+              if (frameCount % 60 === 0 && snapT1 > 0) {
+                console.log(
+                  `[LATENCY] Frame #${frameCount} | Provider Ingress: ${snapT1} | ` +
+                  `ProvTransit: ${snapT2 - snapT1}ms | Network: ${snapBrowserRecv - snapT2}ms | ` +
+                  `BrowserRender: ${browserDisplay - snapBrowserRecv}ms | Total: ${browserDisplay - snapT1}ms`
+                );
+              }
+            })
+            .catch((err) => console.warn('createImageBitmap failed:', err));
+        });
+      };
+
+
       ws.onopen = () => {
         if (!active) {
           ws.close();
@@ -690,7 +770,40 @@ function DevicePage({ device, onBack, onRelease }) {
           }
           return;
         }
-        const chunk = new Uint8Array(event.data);
+
+        const buf = event.data; // ArrayBuffer
+        const header = new Uint8Array(buf, 0, Math.min(4, buf.byteLength));
+
+        // ── iOS raw JPEG path ──────────────────────────────────────────────
+        // The backend prefixes every JPEG frame with 4-byte magic 'J','P','E','G'.
+        // Feed into the RAF-gated renderer: latest-wins, no async queue buildup.
+        if (
+          header.length === 4 &&
+          header[0] === 0x4A && // 'J'
+          header[1] === 0x50 && // 'P'
+          header[2] === 0x45 && // 'E'
+          header[3] === 0x47    // 'G'
+        ) {
+          isIOSStreamRef.current = true;
+          const browserRecv = Date.now();
+          const view = new DataView(buf);
+          let t1 = 0;
+          let t2 = 0;
+          if (buf.byteLength >= 20) {
+            try {
+              t1 = Number(view.getBigUint64(4, false));
+              t2 = Number(view.getBigUint64(12, false));
+            } catch (e) {
+              console.warn('Failed to parse frame timestamps:', e);
+            }
+          }
+          const jpegBlob = new Blob([buf.slice(20)], { type: 'image/jpeg' });
+          scheduleJpegRender(jpegBlob, t1, t2, browserRecv);
+          return;
+        }
+
+        // ── Android H.264 WebCodecs path ──────────────────────────────────
+        const chunk = new Uint8Array(buf);
 
         if (!decoder || decoder.state === 'closed') {
           return;
@@ -856,6 +969,16 @@ function DevicePage({ device, onBack, onRelease }) {
                     userSelect: 'none',
                   }}
                 />
+                {touchIndicator && (
+                  <div
+                    key={touchIndicator.id}
+                    className="touch-ripple"
+                    style={{
+                      left: `${touchIndicator.x}%`,
+                      top: `${touchIndicator.y}%`,
+                    }}
+                  />
+                )}
                 <div
                   id="highlight-overlay"
                   style={{

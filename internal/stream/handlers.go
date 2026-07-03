@@ -12,6 +12,8 @@ import (
 	"github.com/gorilla/websocket"
 	"protean-provider/internal/agent"
 	"protean-provider/internal/automation"
+	"protean-provider/internal/domain"
+	"protean-provider/internal/wda"
 )
 
 var upgrader = websocket.Upgrader{
@@ -305,11 +307,27 @@ func (m *Manager) handleWS(w http.ResponseWriter, r *http.Request, serial string
 		if ev.Type == "DUMP_UI" {
 			go func() {
 				var ctx context.Context = r.Context()
-				var agt *agent.Agent
-				if m.agentFn != nil {
-					agt = m.agentFn(serial)
+				device, rerr := m.registry.Get(serial)
+				if rerr != nil {
+					slog.Error("stream: DUMP_UI failed to get device", "serial", serial, "err", rerr)
+					_ = ws.WriteJSON(map[string]interface{}{
+						"type":  "UI_DUMP_ERROR",
+						"error": "Device not found",
+					})
+					return
 				}
-				driver := automation.NewAndroidDriver(serial, agt)
+
+				var driver domain.Driver
+				if strings.EqualFold(device.Platform, "ios") {
+					driver = automation.NewIOSDriver(s.port + 3000)
+				} else {
+					var agt *agent.Agent
+					if m.agentFn != nil {
+						agt = m.agentFn(serial)
+					}
+					driver = automation.NewAndroidDriver(serial, agt)
+				}
+
 				dump, err := driver.DumpUI(ctx)
 				if err != nil {
 					slog.Error("stream: DUMP_UI failed", "serial", serial, "err", err)
@@ -380,6 +398,8 @@ func (m *Manager) handleWS(w http.ResponseWriter, r *http.Request, serial string
 					if dx*dx+dy*dy > 0.0025 {
 						s.gesture.isSwipe = true
 					}
+					s.gesture.endX = ev.X
+					s.gesture.endY = ev.Y
 				case 1: // UP
 					durationMs := int(time.Since(s.gesture.startTime).Milliseconds())
 					if durationMs <= 0 {
@@ -389,17 +409,31 @@ func (m *Manager) handleWS(w http.ResponseWriter, r *http.Request, serial string
 					startY := s.gesture.startY
 					endX := ev.X
 					endY := ev.Y
-					isSwipe := s.gesture.isSwipe
+					dx := endX - startX
+					dy := endY - startY
+					isSwipe := dx*dx+dy*dy > 0.0025
 
 					s.gestureMu.Unlock()
 					
 					go func() {
 						var ctx context.Context = r.Context()
-						var agt *agent.Agent
-						if m.agentFn != nil {
-							agt = m.agentFn(serial)
+						device, rerr := m.registry.Get(serial)
+						if rerr != nil {
+							slog.Error("stream: record action failed to get device", "serial", serial, "err", rerr)
+							return
 						}
-						driver := automation.NewAndroidDriver(serial, agt)
+
+						var driver domain.Driver
+						if strings.EqualFold(device.Platform, "ios") {
+							driver = automation.NewIOSDriver(s.port + 3000)
+						} else {
+							var agt *agent.Agent
+							if m.agentFn != nil {
+								agt = m.agentFn(serial)
+							}
+							driver = automation.NewAndroidDriver(serial, agt)
+						}
+
 						if isSwipe {
 							_ = m.recorder.RecordSwipe(serial, startX, startY, endX, endY, durationMs)
 						} else {
@@ -413,6 +447,136 @@ func (m *Manager) handleWS(w http.ResponseWriter, r *http.Request, serial string
 			} else if ev.Type == "text" {
 				_ = m.recorder.RecordTextInput(serial, ev.Text)
 			}
+		}
+
+		device, err := m.registry.Get(serial)
+		if err == nil && strings.EqualFold(device.Platform, "ios") {
+			// ── iOS gesture handling ──────────────────────────────────────────
+			// Strategy: accumulate gesture state synchronously on DOWN/MOVE
+			// (zero WDA round-trips), then dispatch a SINGLE goroutine on UP
+			// that performs the tap or swipe. Session creation is amortized on
+			// first contact and cached for the lifetime of the stream.
+
+			// Ensure WDA client exists (lazy-init on first touch event).
+			s.gestureMu.Lock()
+			if s.wdaClient == nil {
+				if m.wdaFn != nil {
+					client, err := m.wdaFn(serial)
+					if err == nil {
+						s.wdaClient = client
+					}
+				}
+				if s.wdaClient == nil {
+					s.wdaClient = wda.NewClient(s.port + 3000)
+				}
+			}
+			wdaClient := s.wdaClient
+			s.gestureMu.Unlock()
+
+			switch ev.Type {
+			case "touch":
+				switch ev.Action {
+				case 0: // DOWN — record start position, no WDA call
+					s.gestureMu.Lock()
+					s.gesture.startX = ev.X
+					s.gesture.startY = ev.Y
+					s.gesture.startTime = time.Now()
+					s.gesture.isSwipe = false
+					s.gestureMu.Unlock()
+
+				case 2: // MOVE — update swipe flag, no WDA call
+					s.gestureMu.Lock()
+					dx := ev.X - s.gesture.startX
+					dy := ev.Y - s.gesture.startY
+					if dx*dx+dy*dy > 0.0025 { // ~5% of screen dimension
+						s.gesture.isSwipe = true
+					}
+					s.gesture.endX = ev.X
+					s.gesture.endY = ev.Y
+					s.gestureMu.Unlock()
+
+				case 1: // UP — snapshot state, then dispatch ONE goroutine
+					s.gestureMu.Lock()
+					durationMs := int(time.Since(s.gesture.startTime).Milliseconds())
+					if durationMs <= 0 {
+						durationMs = 100
+					}
+					snapStartX := s.gesture.startX
+					snapStartY := s.gesture.startY
+					snapEndX := ev.X
+					snapEndY := ev.Y
+					dx := snapEndX - snapStartX
+					dy := snapEndY - snapStartY
+					// isSwipe computed from start->UP delta (works without MOVE events)
+					isSwipe := dx*dx+dy*dy > 0.0025
+					lw := s.logicalWidth
+					lh := s.logicalHeight
+					s.gestureMu.Unlock()
+
+					go func() {
+						ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+						defer cancel()
+
+						// Ensure WDA session exists (creates once, cached).
+						if err := wdaClient.EnsureSession(ctx); err != nil {
+							slog.Error("stream: failed to ensure WDA session", "serial", serial, "err", err)
+							return
+						}
+
+						// Fetch logical screen size once and cache it.
+						if lw <= 0 || lh <= 0 {
+							if w, h, sizeErr := wdaClient.GetWindowSize(ctx); sizeErr == nil && w > 0 && h > 0 {
+								s.gestureMu.Lock()
+								s.logicalWidth, s.logicalHeight = w, h
+								s.gestureMu.Unlock()
+								lw, lh = w, h
+							} else {
+								lw, lh = 375.0, 812.0 // safe fallback
+							}
+						}
+
+						absStartX := snapStartX * lw
+						absStartY := snapStartY * lh
+						absEndX := snapEndX * lw
+						absEndY := snapEndY * lh
+
+						if isSwipe {
+							durationSec := float64(durationMs) / 1000.0
+							if durationSec <= 0 {
+								durationSec = 0.5
+							}
+							if serr := wdaClient.Swipe(ctx, absStartX, absStartY, absEndX, absEndY, durationSec); serr != nil {
+								slog.Warn("stream: ios swipe failed", "serial", serial, "err", serr)
+							}
+						} else {
+							if terr := wdaClient.Tap(ctx, absStartX, absStartY); terr != nil {
+								slog.Warn("stream: ios tap failed", "serial", serial, "err", terr)
+							}
+						}
+					}()
+				}
+
+			case "key":
+				go func(keycode int) {
+					if keycode == 3 { // Home key
+						ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+						defer cancel()
+						if herr := wdaClient.Request(ctx, "POST", "/wda/homescreen", nil, nil); herr != nil {
+							slog.Warn("stream: ios home gesture failed", "serial", serial, "err", herr)
+						}
+					}
+				}(ev.Keycode)
+
+			case "text":
+				go func(text string) {
+					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					defer cancel()
+					if terr := wdaClient.SendKeys(ctx, text); terr != nil {
+						slog.Warn("stream: ios send keys failed", "serial", serial, "err", terr)
+					}
+				}(ev.Text)
+			}
+			continue
 		}
 
 		s.controlMu.Lock()

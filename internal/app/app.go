@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"strings"
 	"time"
 
 	"protean-provider/internal/adb"
@@ -14,9 +15,12 @@ import (
 	"protean-provider/internal/domain"
 	inboundGRPC "protean-provider/internal/grpc"
 	"protean-provider/internal/agent"
+	"protean-provider/internal/goios"
+	"protean-provider/internal/platform"
 	"protean-provider/internal/registry"
 	"protean-provider/internal/stream"
 	"protean-provider/internal/supervisor"
+	"protean-provider/internal/wda"
 )
 
 const eventBufferSize = 64
@@ -27,6 +31,8 @@ type App struct {
 	provider      *domain.Provider
 	adbClient     adb.Client
 	tracker       *adb.Tracker
+	iosTracker    *goios.Tracker
+	platformMgr   *platform.PlatformManager
 	registry      domain.DeviceRegistry
 	coordinator   *coordinator.Client
 	supervisor    *supervisor.Supervisor
@@ -63,12 +69,20 @@ func New(cfg *config.Config) (*App, error) {
 	// ── Device Registry ──────────────────────────────────────────────────────
 	reg := registry.New()
 
-	// ── Coordinator client ───────────────────────────────────────────────────
-	coord := coordinator.New(cfg.Coordinator, provider.ID)
-
 	// ── Stream Manager ──────────────────────────────────────────────────────
 	var sup *supervisor.Supervisor
 	streamMgr := stream.NewManager(cfg, reg)
+
+	// ── Platform Manager ─────────────────────────────────────────────────────
+	platformMgr := platform.InitializePlatformManager(adbClient, streamMgr)
+
+	// ── iOS Tracker ──────────────────────────────────────────────────────────
+	goiosClient := goios.NewClient()
+	goiosDeviceMgr := goios.NewDeviceManager(goiosClient)
+	iosTracker := goios.NewTracker(goiosDeviceMgr, 3*time.Second)
+
+	// ── Coordinator client ───────────────────────────────────────────────────
+	coord := coordinator.New(cfg.Coordinator, provider.ID)
 
 	// ── Supervisor (initialised but not started yet) ──────────────────────────
 	// We pass a background context for the port allocator's DB restore;
@@ -87,6 +101,9 @@ func New(cfg *config.Config) (*App, error) {
 	streamMgr.SetAgentProvider(func(serial string) *agent.Agent {
 		return sup.Agent(serial)
 	})
+	streamMgr.SetWDAClientProvider(func(serial string) (*wda.Client, error) {
+		return sup.WDAClient(serial)
+	})
 
 	inboundServer := inboundGRPC.NewServer(cfg, sup, reg)
 
@@ -95,6 +112,8 @@ func New(cfg *config.Config) (*App, error) {
 		provider:      provider,
 		adbClient:     adbClient,
 		tracker:       tracker,
+		iosTracker:    iosTracker,
+		platformMgr:   platformMgr,
 		registry:      reg,
 		coordinator:   coord,
 		supervisor:    sup,
@@ -126,15 +145,18 @@ func (a *App) Run(ctx context.Context) error {
 		go a.coordinator.RunHeartbeat(ctx)
 	}
 
-	// ── ADB Tracker ─────────────────────────────────────────────────────────
+	// ── Device Trackers ─────────────────────────────────────────────────────
 	events := make(chan domain.DeviceEvent, eventBufferSize)
 
-	trackerErr := make(chan error, 1)
+	trackerErr := make(chan error, 2)
 	go func() {
 		trackerErr <- a.tracker.Watch(ctx, events)
 	}()
+	go func() {
+		trackerErr <- a.iosTracker.Watch(ctx, events)
+	}()
 
-	slog.Info("adb tracker running, waiting for devices…")
+	slog.Info("device trackers running (Android & iOS), waiting for devices…")
 
 	for {
 		select {
@@ -145,9 +167,8 @@ func (a *App) Run(ctx context.Context) error {
 
 		case err := <-trackerErr:
 			if err != nil && err != context.Canceled {
-				return fmt.Errorf("adb tracker: %w", err)
+				return fmt.Errorf("device tracker error: %w", err)
 			}
-			return nil
 
 		case event := <-events:
 			a.handleEvent(event)
@@ -211,9 +232,11 @@ func (a *App) onDeviceConnected(event domain.DeviceEvent) {
 	)
 
 
-	// Install/push scrcpy-server.jar to device
-	if err := stream.PushScrcpyServer(context.Background(), d.Serial); err != nil {
-		slog.Warn("failed to install scrcpy-server.jar on device", "serial", d.Serial, "err", err)
+	// Install/push scrcpy-server.jar to device (Android only)
+	if strings.EqualFold(d.Platform, "android") {
+		if err := stream.PushScrcpyServer(context.Background(), d.Serial); err != nil {
+			slog.Warn("failed to install scrcpy-server.jar on device", "serial", d.Serial, "err", err)
+		}
 	}
 
 	// Start a supervisor for this device.

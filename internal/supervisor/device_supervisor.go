@@ -4,13 +4,16 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 
 	"protean-provider/internal/adb"
 	"protean-provider/internal/agent"
 	"protean-provider/internal/domain"
+	"protean-provider/internal/wda"
 )
 
 // DeviceSupervisor manages the full lifecycle of a single connected device.
@@ -31,6 +34,8 @@ type DeviceSupervisor struct {
 	sessionID string
 	port      int
 	agt       *agent.Agent // non-nil while a session is active
+	iosWorker *IOSWorker   // non-nil for iOS devices
+	wdaClient *wda.Client  // non-nil for iOS devices
 	streams   domain.StreamManager
 
 	cancel context.CancelFunc
@@ -82,45 +87,57 @@ func (ds *DeviceSupervisor) Run(ctx context.Context) {
 
 	slog.Info("device supervisor: port allocated", "serial", serial, "port", port)
 
-	// Spawn the Protean Agent for this device (using port + 3000 for the WebSocket reverse proxy)
-	// (Note: port+2000 is used by scrcpy-server for adb forward)
-	agt := agent.New(ds.device, port+3000, ds.adbClient)
-	ds.mu.Lock()
-	ds.agt = agt
-	ds.mu.Unlock()
+	// Spawn the Agent or IOS Worker for this device (using port + 3000 for WDA / WebSocket proxy)
+	if strings.EqualFold(ds.device.Platform, "ios") {
+		iosWorker := NewIOSWorker(ds.device.Serial, port+3000)
+		ds.mu.Lock()
+		ds.iosWorker = iosWorker
+		ds.wdaClient = wda.NewClient(port + 3000)
+		ds.mu.Unlock()
 
-	go func() {
-		if err := agt.Run(dsCtx); err != nil {
-			slog.Warn("device supervisor: agent exited with error",
+		if err := iosWorker.Start(dsCtx); err != nil {
+			slog.Warn("device supervisor: ios worker start failed",
 				"serial", ds.device.Serial, "err", err)
 		}
-	}()
+	} else {
+		agt := agent.New(ds.device, port+3000, ds.adbClient)
+		ds.mu.Lock()
+		ds.agt = agt
+		ds.mu.Unlock()
 
-	// Listen to state updates from the agent (telemetry changes like battery/network)
-	go func() {
-		for {
-			select {
-			case <-dsCtx.Done():
-				return
-			case dev, ok := <-agt.StateUpdates:
-				if !ok {
-					return
-				}
-				ds.mu.RLock()
-				state := ds.state
-				sessionID := ds.sessionID
-				ds.mu.RUnlock()
-
-				ds.emit(SupervisorEvent{
-					Serial:    ds.device.Serial,
-					OldState:  state,
-					NewState:  state,
-					SessionID: sessionID,
-					Device:    dev,
-				})
+		go func() {
+			if err := agt.Run(dsCtx); err != nil {
+				slog.Warn("device supervisor: agent exited with error",
+					"serial", ds.device.Serial, "err", err)
 			}
-		}
-	}()
+		}()
+
+		// Listen to state updates from the agent (telemetry changes like battery/network)
+		go func() {
+			for {
+				select {
+				case <-dsCtx.Done():
+					return
+				case dev, ok := <-agt.StateUpdates:
+					if !ok {
+						return
+					}
+					ds.mu.RLock()
+					state := ds.state
+					sessionID := ds.sessionID
+					ds.mu.RUnlock()
+
+					ds.emit(SupervisorEvent{
+						Serial:    ds.device.Serial,
+						OldState:  state,
+						NewState:  state,
+						SessionID: sessionID,
+						Device:    dev,
+					})
+				}
+			}
+		}()
+	}
 
 	// The supervisor now sits idle, processing commands sent via Claim/Release/Activate.
 	<-dsCtx.Done()
@@ -213,6 +230,13 @@ func (ds *DeviceSupervisor) Activate(ctx context.Context) error {
 	return nil
 }
 
+// WDAClient returns the WDA Client instance for this device.
+func (ds *DeviceSupervisor) WDAClient() *wda.Client {
+	ds.mu.RLock()
+	defer ds.mu.RUnlock()
+	return ds.wdaClient
+}
+
 // Release transitions the device from Claimed|Busy → Idle and closes the session.
 func (ds *DeviceSupervisor) Release(ctx context.Context) error {
 	ds.mu.Lock()
@@ -232,6 +256,15 @@ func (ds *DeviceSupervisor) Release(ctx context.Context) error {
 	// Stop screen stream capture.
 	_ = ds.streams.StopCapture(ctx, ds.device.Serial)
 
+	// Clean up WDA session
+	if ds.wdaClient != nil {
+		go func(c *wda.Client) {
+			delCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			_ = c.DeleteSession(delCtx)
+		}(ds.wdaClient)
+	}
+
 	ds.state = StateIdle
 	ds.emit(SupervisorEvent{
 		Serial:   ds.device.Serial,
@@ -249,6 +282,10 @@ func (ds *DeviceSupervisor) teardown(ctx context.Context) {
 	ds.mu.Lock()
 	agt := ds.agt
 	ds.agt = nil
+	iosWorker := ds.iosWorker
+	ds.iosWorker = nil
+	wdaClient := ds.wdaClient
+	ds.wdaClient = nil
 	if ds.sessionID != "" {
 		ds.sessionID = ""
 	}
@@ -257,6 +294,20 @@ func (ds *DeviceSupervisor) teardown(ctx context.Context) {
 	// Stop agent outside the lock (it has its own sync).
 	if agt != nil {
 		agt.Stop()
+	}
+
+	// Stop iOS worker outside the lock.
+	if iosWorker != nil {
+		iosWorker.Stop()
+	}
+
+	// Clean up WDA session
+	if wdaClient != nil {
+		go func(c *wda.Client) {
+			delCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			_ = c.DeleteSession(delCtx)
+		}(wdaClient)
 	}
 
 	// Stop screen stream capture on teardown.

@@ -197,120 +197,25 @@ func (s *Server) ControlDevice(stream provider.ProviderService_ControlDeviceServ
 		}
 		activeSerial = serial
 
-		agt := s.sup.Agent(serial)
-		if agt == nil {
-			return status.Errorf(codes.FailedPrecondition, "no active agent session found for device %s", serial)
+		device, rerr := s.registry.Get(serial)
+		if rerr != nil {
+			return status.Errorf(codes.NotFound, "device %s not found in registry", serial)
 		}
 
 		ctx := stream.Context()
 		var resp *provider.ControlResponse
 
-		switch event := req.Event.(type) {
-		case *provider.ControlRequest_Touch:
-			t := event.Touch
-			// Convert streaming coordinates sequence to tap or swipe command.
-			switch t.Action {
-			case provider.TouchEvent_DOWN:
-				lastX = t.X
-				lastY = t.Y
-				touchDownTime = time.Now()
-				resp = &provider.ControlResponse{Success: true}
-			case provider.TouchEvent_MOVE:
-				lastX = t.X
-				lastY = t.Y
-				resp = &provider.ControlResponse{Success: true}
-			case provider.TouchEvent_UP:
-				duration := time.Since(touchDownTime).Milliseconds()
-				if duration < 250 && abs(lastX-t.X) < 10 && abs(lastY-t.Y) < 10 {
-					// Tap event
-					cmd := fmt.Sprintf("input tap %d %d", t.X, t.Y)
-					_, shellErr := agt.Shell(ctx, cmd)
-					if shellErr != nil {
-						resp = &provider.ControlResponse{Success: false, Message: shellErr.Error()}
-					} else {
-						resp = &provider.ControlResponse{Success: true}
-					}
-				} else {
-					// Swipe event
-					if duration == 0 {
-						duration = 100
-					}
-					cmd := fmt.Sprintf("input swipe %d %d %d %d %d", lastX, lastY, t.X, t.Y, duration)
-					_, shellErr := agt.Shell(ctx, cmd)
-					if shellErr != nil {
-						resp = &provider.ControlResponse{Success: false, Message: shellErr.Error()}
-					} else {
-						resp = &provider.ControlResponse{Success: true}
-					}
-				}
+		if strings.EqualFold(device.Platform, "ios") {
+			var err error
+			resp, err = s.handleIOSControl(ctx, req, serial, &lastX, &lastY, &touchDownTime)
+			if err != nil {
+				return err
 			}
-
-		case *provider.ControlRequest_Key:
-			k := event.Key
-			// Execute keyevent command.
-			// Action keycode mapping. Key actions in ADB are usually sent simply as a single keyevent.
-			if k.Action == provider.KeyEvent_DOWN {
-				cmd := fmt.Sprintf("input keyevent %d", k.KeyCode)
-				_, shellErr := agt.Shell(ctx, cmd)
-				if shellErr != nil {
-					resp = &provider.ControlResponse{Success: false, Message: shellErr.Error()}
-				} else {
-					resp = &provider.ControlResponse{Success: true}
-				}
-			} else {
-				resp = &provider.ControlResponse{Success: true}
-			}
-
-		case *provider.ControlRequest_Text:
-			t := event.Text
-			// Escape text for shell injection safety.
-			escaped := strings.ReplaceAll(t.Text, "'", "'\\''")
-			cmd := fmt.Sprintf("input text '%s'", escaped)
-			_, shellErr := agt.Shell(ctx, cmd)
-			if shellErr != nil {
-				resp = &provider.ControlResponse{Success: false, Message: shellErr.Error()}
-			} else {
-				resp = &provider.ControlResponse{Success: true}
-			}
-
-		case *provider.ControlRequest_Rotate:
-			r := event.Rotate
-			// Rotate values: 0 -> 0 degrees, 1 -> 90 degrees, 2 -> 180 degrees, 3 -> 270 degrees.
-			rotationVal := 0
-			switch r.Rotation {
-			case 90:
-				rotationVal = 1
-			case 180:
-				rotationVal = 2
-			case 270:
-				rotationVal = 3
-			}
-			cmd := fmt.Sprintf("settings put system accelerometer_rotation 0 && settings put system user_rotation %d", rotationVal)
-			_, shellErr := agt.Shell(ctx, cmd)
-			if shellErr != nil {
-				resp = &provider.ControlResponse{Success: false, Message: shellErr.Error()}
-			} else {
-				resp = &provider.ControlResponse{Success: true}
-			}
-
-		case *provider.ControlRequest_Shell:
-			sh := event.Shell
-			res, shellErr := agt.ShellWithExitCode(ctx, sh.Command)
-			if shellErr != nil {
-				resp = &provider.ControlResponse{
-					Success: false,
-					Message: shellErr.Error(),
-				}
-			} else {
-				resp = &provider.ControlResponse{
-					Success: true,
-					Response: &provider.ControlResponse_ShellResponse{
-						ShellResponse: &provider.ShellCommandResponse{
-							Output:   res.Output,
-							ExitCode: int32(res.ExitCode),
-						},
-					},
-				}
+		} else {
+			var err error
+			resp, err = s.handleAndroidControl(ctx, req, serial, &lastX, &lastY, &touchDownTime)
+			if err != nil {
+				return err
 			}
 		}
 
@@ -348,11 +253,36 @@ func (s *Server) ExecuteScript(ctx context.Context, req *provider.ExecuteScriptR
 		}, nil
 	}
 
-	var agt *agent.Agent
-	if s.sup != nil {
-		agt = s.sup.Agent(req.Serial)
+	device, err := s.registry.Get(req.Serial)
+	if err != nil {
+		return &provider.ExecuteScriptResponse{
+			Success: false,
+			Error:   fmt.Sprintf("device not found in registry: %v", err),
+		}, nil
 	}
-	driver := automation.NewAndroidDriver(req.Serial, agt)
+
+	var driver domain.Driver
+	if strings.EqualFold(device.Platform, "ios") {
+		wdaClient, err := s.sup.WDAClient(req.Serial)
+		if err == nil && wdaClient != nil {
+			driver = automation.NewIOSDriverWithClient(wdaClient)
+		} else {
+			port, err := s.sup.PortOf(req.Serial)
+			if err != nil {
+				return &provider.ExecuteScriptResponse{
+					Success: false,
+					Error:   fmt.Sprintf("failed to get port for iOS device: %v", err),
+				}, nil
+			}
+			driver = automation.NewIOSDriver(port + 3000)
+		}
+	} else {
+		var agt *agent.Agent
+		if s.sup != nil {
+			agt = s.sup.Agent(req.Serial)
+		}
+		driver = automation.NewAndroidDriver(req.Serial, agt)
+	}
 	runner := automation.NewRunner(driver)
 
 	report, err := runner.Run(ctx, script)

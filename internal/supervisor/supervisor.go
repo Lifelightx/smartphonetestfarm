@@ -15,6 +15,7 @@ import (
 	"protean-provider/internal/adb"
 	"protean-provider/internal/agent"
 	"protean-provider/internal/domain"
+	"protean-provider/internal/wda"
 )
 
 const eventBufferSize = 128
@@ -136,6 +137,15 @@ func (s *Supervisor) PortOf(serial string) (int, error) {
 		return 0, err
 	}
 	return ds.Port(), nil
+}
+
+// WDAClient returns the active WDA Client for an iOS device serial.
+func (s *Supervisor) WDAClient(serial string) (*wda.Client, error) {
+	ds, err := s.get(serial)
+	if err != nil {
+		return nil, err
+	}
+	return ds.WDAClient(), nil
 }
 
 // Agent returns the active Agent for a device serial, if one exists.

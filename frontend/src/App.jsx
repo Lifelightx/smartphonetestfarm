@@ -130,6 +130,13 @@ function App() {
     }
   };
 
+  useEffect(() => {
+    if (activeDevice && activeDevice.status === 'idle') {
+      handleClaim(activeDevice);
+    }
+  }, [currentPath, activeDevice?.status]);
+
+
   const handleRelease = async (serial) => {
     try {
       showToast(`Releasing device...`, 'success');

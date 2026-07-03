@@ -94,7 +94,8 @@ func TestInboundServer_UnaryCalls(t *testing.T) {
 
 	// Add dummy device to registry and supervisor
 	dummyDev := &domain.Device{
-		Serial: "TEST_SERIAL_123",
+		Serial:   "TEST_SERIAL_123",
+		Platform: "android",
 		Info: domain.DeviceInfo{
 			Model:        "Pixel 6",
 			Manufacturer: "Google",

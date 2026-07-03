@@ -10,7 +10,7 @@ import (
 )
 
 func makeDevice(serial string) *domain.Device {
-	return &domain.Device{Serial: serial}
+	return &domain.Device{Serial: serial, Platform: "android"}
 }
 
 func TestRegistry_AddAndGet(t *testing.T) {

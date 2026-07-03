@@ -257,3 +257,30 @@ html, body {
     padding: 16px;
   }
 }
+
+/* ── Touch Gesture Ripple Indicator ── */
+.touch-ripple {
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  margin-left: -16px;
+  margin-top: -16px;
+  border-radius: 50%;
+  background-color: rgba(59, 130, 246, 0.4);
+  border: 2px solid rgba(59, 130, 246, 0.85);
+  pointer-events: none;
+  z-index: 999;
+  transform: scale(0.5);
+  animation: ripple-out 400ms cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+}
+
+@keyframes ripple-out {
+  0% {
+    transform: scale(0.5);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(2.0);
+    opacity: 0;
+  }
+}

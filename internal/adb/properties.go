@@ -53,9 +53,10 @@ func FetchProperties(ctx context.Context, c Client, serial string) (*domain.Devi
 
 	now := time.Now()
 	return &domain.Device{
-		Serial: serial,
-		Info:   info,
-		Display: display,
+		Serial:   serial,
+		Platform: "android",
+		Info:     info,
+		Display:  display,
 		State: domain.DeviceState{
 			Status:  domain.StatusOnline,
 			Battery: battery,

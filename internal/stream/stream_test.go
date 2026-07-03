@@ -2,9 +2,13 @@ package stream
 
 import (
 	"bytes"
+	"context"
 	"testing"
+	"time"
 
 	"protean-provider/internal/config"
+	"protean-provider/internal/domain"
+	"protean-provider/internal/registry"
 )
 
 // ── H.264 parser tests ────────────────────────────────────────────────────────
@@ -142,3 +146,43 @@ func TestManager_IsCapturing_InitialState(t *testing.T) {
 		t.Error("expected IsCapturing=false for unknown serial")
 	}
 }
+
+func TestManager_StartIOSCapture(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Stream.MaxFPS = 15
+	cfg.Stream.Quality = 80
+
+	reg := registry.New()
+	dev := &domain.Device{
+		Serial:   "IOS-TEST-0001",
+		Platform: "ios",
+	}
+	_ = reg.Add(dev)
+
+	m := NewManager(cfg, reg)
+
+	// Since we mock the device as "ios", StartCapture will trigger startIOSCaptureLocked.
+	// We use a high random port or port 0 (actually 0 selects a free port, but we need a fixed port for WDA client URL in the code).
+	// We can allocate a port that is unlikely to be used, e.g. 19500.
+	err := m.StartCapture(context.Background(), dev.Serial, 19500)
+	if err != nil {
+		t.Fatalf("expected successful start capture, got: %v", err)
+	}
+
+	if !m.IsCapturing(dev.Serial) {
+		t.Errorf("expected IsCapturing to be true")
+	}
+
+	// Give a very small buffer of time for server to bind/run
+	time.Sleep(100 * time.Millisecond)
+
+	err = m.StopCapture(context.Background(), dev.Serial)
+	if err != nil {
+		t.Errorf("expected successful stop capture, got: %v", err)
+	}
+
+	if m.IsCapturing(dev.Serial) {
+		t.Errorf("expected IsCapturing to be false after stop")
+	}
+}
+

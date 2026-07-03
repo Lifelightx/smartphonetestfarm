@@ -73,6 +73,7 @@ type FileSystemInfo struct {
 
 type Device struct{
 	Serial string
+	Platform string // "android" or "ios"
 	ProviderIP string
 
 	Info DeviceInfo
