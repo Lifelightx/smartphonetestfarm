@@ -79,6 +79,10 @@ func (d *DB) migrate() error {
 		`ALTER TABLE devices ADD COLUMN IF NOT EXISTS stream_port INT NOT NULL DEFAULT 0;`,
 		`ALTER TABLE devices ADD COLUMN IF NOT EXISTS file_system JSON;`,
 		`ALTER TABLE devices ADD COLUMN IF NOT EXISTS installed_browsers JSON;`,
+		`ALTER TABLE devices ADD COLUMN IF NOT EXISTS platform TEXT NOT NULL DEFAULT 'android';`,
+		`ALTER TABLE devices ADD COLUMN IF NOT EXISTS os_version TEXT NOT NULL DEFAULT '';`,
+		`UPDATE devices SET os_version = android WHERE os_version = '';`,
+		`UPDATE devices SET platform = 'ios' WHERE manufacturer = 'Apple';`,
 		`CREATE TABLE IF NOT EXISTS automation_scripts (
 			id UUID PRIMARY KEY,
 			name TEXT NOT NULL,
@@ -121,12 +125,19 @@ func (d *DB) RegisterProvider(ip, name, host string, minPort, maxPort int, versi
 }
 
 func (d *DB) RegisterDevice(providerIP, serial, model, manufacturer, android string, sdk int, abi string, ram, storage int64, width, height, dpi, battery int, wifi, ip string, connectedAt time.Time) error {
+	platform := "android"
+	if manufacturer == "Apple" || sdk == 0 {
+		platform = "ios"
+	}
+	osVersion := android
+
 	query := `
 		INSERT INTO devices (
 			serial, provider_ip, model, manufacturer, android, sdk, abi, ram_mb, storage_mb,
-			display_width, display_height, display_dpi, battery, wifi_ssid, ip, status, connected_at, updated_at
+			display_width, display_height, display_dpi, battery, wifi_ssid, ip, status, connected_at, updated_at,
+			platform, os_version
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'idle', $16, NOW())
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'idle', $16, NOW(), $17, $18)
 		ON CONFLICT (serial) DO UPDATE SET
 			provider_ip = EXCLUDED.provider_ip,
 			model = EXCLUDED.model,
@@ -144,8 +155,10 @@ func (d *DB) RegisterDevice(providerIP, serial, model, manufacturer, android str
 			ip = EXCLUDED.ip,
 			status = CASE WHEN devices.status = 'offline' THEN 'idle' ELSE devices.status END,
 			connected_at = EXCLUDED.connected_at,
-			updated_at = NOW();`
-	_, err := d.db.Exec(query, serial, providerIP, model, manufacturer, android, sdk, abi, ram, storage, width, height, dpi, battery, wifi, ip, connectedAt)
+			updated_at = NOW(),
+			platform = EXCLUDED.platform,
+			os_version = EXCLUDED.os_version;`
+	_, err := d.db.Exec(query, serial, providerIP, model, manufacturer, android, sdk, abi, ram, storage, width, height, dpi, battery, wifi, ip, connectedAt, platform, osVersion)
 	return err
 }
 

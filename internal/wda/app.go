@@ -40,3 +40,22 @@ func (c *Client) TerminateApp(ctx context.Context, bundleID string) error {
 
 	return nil
 }
+
+// OpenURL requests WDA to open the specified URL (supports deep links and http/https).
+func (c *Client) OpenURL(ctx context.Context, urlStr string) error {
+	if c.sessionID == "" {
+		return fmt.Errorf("wda app: session not active")
+	}
+
+	body := map[string]interface{}{
+		"url": urlStr,
+	}
+
+	urlPath := fmt.Sprintf("/session/%s/url", c.sessionID)
+	if err := c.Request(ctx, "POST", urlPath, body, nil); err != nil {
+		return fmt.Errorf("failed to open URL %s via WDA: %w", urlStr, err)
+	}
+
+	return nil
+}
+

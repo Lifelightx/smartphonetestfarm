@@ -10,7 +10,8 @@ function DeviceDetailsTable({ devices, onClaim, onViewStream, onRelease }) {
     d.model?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     d.manufacturer?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     d.provider_id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    d.android?.toLowerCase().includes(searchQuery.toLowerCase())
+    d.android?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    d.os_version?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
@@ -32,7 +33,7 @@ function DeviceDetailsTable({ devices, onClaim, onViewStream, onRelease }) {
             <tr>
               <th>Action</th>
               <th>Serial</th>
-              <th>Android</th>
+              <th>OS Version</th>
               <th>Battery</th>
               <th>Provider IP</th>
               <th>Manufacturer</th>
@@ -57,7 +58,9 @@ function DeviceDetailsTable({ devices, onClaim, onViewStream, onRelease }) {
                     )}
                   </td>
                   <td>{device.serial}</td>
-                  <td>{device.android}</td>
+                  <td>
+                    {device.platform === 'ios' || device.manufacturer === 'Apple' ? 'iOS' : 'Android'} {device.os_version || device.android}
+                  </td>
                   <td>{device.battery}%</td>
                   <td>{device.provider_id}</td>
                   <td>{device.manufacturer}</td>

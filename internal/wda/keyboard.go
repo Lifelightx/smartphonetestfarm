@@ -27,3 +27,20 @@ func (c *Client) SendKeys(ctx context.Context, text string) error {
 	}
 	return nil
 }
+
+// PressButton simulates pressing a physical device button (e.g. "volumeup", "volumedown", "home").
+func (c *Client) PressButton(ctx context.Context, name string) error {
+	if c.sessionID == "" {
+		return fmt.Errorf("wda button: WDA session not active")
+	}
+
+	body := map[string]interface{}{
+		"name": name,
+	}
+
+	urlPath := fmt.Sprintf("/session/%s/wda/pressButton", c.sessionID)
+	if err := c.Request(ctx, "POST", urlPath, body, nil); err != nil {
+		return fmt.Errorf("wda press button %q failed: %w", name, err)
+	}
+	return nil
+}

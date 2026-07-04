@@ -93,6 +93,62 @@ var productTypeMap = map[string]string{
 	"iPhone18,4": "iPhone 17 Pro Max",
 }
 
+var productTypeRAMMap = map[string]int64{
+	// iPhone 8 / 8 Plus
+	"iPhone10,1": 2048,
+	"iPhone10,4": 2048,
+	"iPhone10,2": 3072,
+	"iPhone10,5": 3072,
+	// iPhone X
+	"iPhone10,3": 3072,
+	"iPhone10,6": 3072,
+	// iPhone XS / XS Max / XR
+	"iPhone11,2": 4096,
+	"iPhone11,4": 4096,
+	"iPhone11,6": 4096,
+	"iPhone11,8": 3072,
+	// iPhone 11 series
+	"iPhone12,1": 4096,
+	"iPhone12,3": 4096,
+	"iPhone12,5": 4096,
+	// iPhone SE (2nd Gen)
+	"iPhone12,8": 3072,
+	// iPhone 12 series
+	"iPhone13,1": 4096,
+	"iPhone13,2": 4096,
+	"iPhone13,3": 6144,
+	"iPhone13,4": 6144,
+	// iPhone 13 series
+	"iPhone14,4": 4096,
+	"iPhone14,5": 4096,
+	"iPhone14,2": 6144,
+	"iPhone14,3": 6144,
+	// iPhone SE (3rd Gen)
+	"iPhone14,6": 4096,
+	// iPhone 14 series
+	"iPhone14,7": 6144,
+	"iPhone14,8": 6144,
+	"iPhone15,2": 6144,
+	"iPhone15,3": 6144,
+	// iPhone 15 series
+	"iPhone15,4": 6144,
+	"iPhone15,5": 6144,
+	"iPhone16,1": 8192,
+	"iPhone16,2": 8192,
+	// iPhone 16 series
+	"iPhone17,1": 8192,
+	"iPhone17,2": 8192,
+	"iPhone17,3": 8192,
+	"iPhone17,4": 8192,
+}
+
+func resolveRAM(productType string) int64 {
+	if ram, ok := productTypeRAMMap[productType]; ok {
+		return ram
+	}
+	return 0
+}
+
 func resolveModelName(productType string) string {
 	if name, ok := productTypeMap[productType]; ok {
 		return name
@@ -123,6 +179,7 @@ func (dm *DeviceManager) Discover(ctx context.Context) ([]*domain.Device, error)
 				Model:          resolveModelName(entry.ProductType),
 				Manufacturer:   "Apple",
 				AndroidVersion: entry.ProductVersion, // iOS Version mapped to AndroidVersion field for compatibility
+				RAMMB:          resolveRAM(entry.ProductType),
 			},
 			ConnectedAt: now,
 			LastSeen:    now,
@@ -162,6 +219,30 @@ func (dm *DeviceManager) GetProperties(ctx context.Context, serial string) (*dom
 		disp.Fps = 60
 	}
 
+	// Fetch storage configuration
+	diskOut, err := dm.client.Run(ctx, serial, "diskspace")
+	var storageMB int64
+	if err == nil {
+		if diskMap, err := parseJSONMap(string(diskOut)); err == nil {
+			if tb, ok := diskMap["TotalBytes"].(float64); ok {
+				storageMB = int64(tb) / 1024 / 1024
+			}
+		}
+	}
+
+	// Fetch battery configurations
+	batteryOut, err := dm.client.Run(ctx, serial, "batterycheck")
+	var batteryLevel int
+	if err == nil {
+		if batMap, err := parseJSONMap(string(batteryOut)); err == nil {
+			if cap, ok := batMap["BatteryCurrentCapacity"].(float64); ok {
+				batteryLevel = int(cap)
+			}
+		}
+	}
+
+	productType := getString(infoMap, "ProductType")
+
 	now := time.Now()
 	dev := &domain.Device{
 		Serial:     serial,
@@ -169,9 +250,16 @@ func (dm *DeviceManager) GetProperties(ctx context.Context, serial string) (*dom
 		ProviderIP: "127.0.0.1",
 		Display:    disp,
 		Info: domain.DeviceInfo{
-			Model:          resolveModelName(getString(infoMap, "ProductType")),
+			Model:          resolveModelName(productType),
 			Manufacturer:   "Apple",
 			AndroidVersion: getString(infoMap, "ProductVersion"),
+			RAMMB:          resolveRAM(productType),
+			StorageMB:      storageMB,
+		},
+		State: domain.DeviceState{
+			Battery: domain.BatteryInfo{
+				Level: batteryLevel,
+			},
 		},
 		ConnectedAt: now,
 		LastSeen:    now,

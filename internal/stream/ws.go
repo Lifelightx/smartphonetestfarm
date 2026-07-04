@@ -406,6 +406,16 @@ func (m *Manager) handleWS(w http.ResponseWriter, r *http.Request, serial string
 						if herr := wdaClient.Request(ctx, "POST", "/wda/homescreen", nil, nil); herr != nil {
 							slog.Warn("stream: ios home gesture failed", "serial", serial, "err", herr)
 						}
+					case 24: // Volume Up
+						if herr := wdaClient.PressButton(ctx, "volumeup"); herr != nil {
+							slog.Warn("stream: ios volume up failed", "serial", serial, "err", herr)
+						}
+					case 25: // Volume Down
+						if herr := wdaClient.PressButton(ctx, "volumedown"); herr != nil {
+							slog.Warn("stream: ios volume down failed", "serial", serial, "err", herr)
+						}
+					case 164: // Volume Mute
+						_ = wdaClient.PressButton(ctx, "mute")
 					case 4: // Back button
 						s.gestureMu.Lock()
 						lw, lh := s.logicalWidth, s.logicalHeight

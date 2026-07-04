@@ -63,11 +63,18 @@ func TestDeviceManager_Discover(t *testing.T) {
 func TestDeviceManager_GetProperties(t *testing.T) {
 	mock := &mockCLIClient{
 		runFunc: func(ctx context.Context, udid string, args ...string) ([]byte, error) {
-			if len(args) > 0 && args[0] == "info" {
-				if len(args) > 1 && args[1] == "display" {
-					return []byte(`{"width": 1170, "height": 2532}`), nil
+			if len(args) > 0 {
+				switch args[0] {
+				case "info":
+					if len(args) > 1 && args[1] == "display" {
+						return []byte(`{"width": 1170, "height": 2532}`), nil
+					}
+					return []byte(`{"ProductType": "iPhone16,1", "ProductVersion": "17.4"}`), nil
+				case "diskspace":
+					return []byte(`{"TotalBytes": 128000000000}`), nil
+				case "batterycheck":
+					return []byte(`{"BatteryCurrentCapacity": 85}`), nil
 				}
-				return []byte(`{"ProductType": "iPhone16,1", "ProductVersion": "17.4"}`), nil
 			}
 			return nil, errors.New("unexpected command")
 		},
@@ -81,5 +88,17 @@ func TestDeviceManager_GetProperties(t *testing.T) {
 
 	if dev.Display.Width != 1170 || dev.Display.Height != 2532 {
 		t.Errorf("expected display 1170x2532, got %dx%d", dev.Display.Width, dev.Display.Height)
+	}
+
+	if dev.Info.RAMMB != 8192 {
+		t.Errorf("expected RAMMB 8192, got %d", dev.Info.RAMMB)
+	}
+
+	if dev.Info.StorageMB != 122070 {
+		t.Errorf("expected StorageMB 122070, got %d", dev.Info.StorageMB)
+	}
+
+	if dev.State.Battery.Level != 85 {
+		t.Errorf("expected Battery Level 85, got %d", dev.State.Battery.Level)
 	}
 }

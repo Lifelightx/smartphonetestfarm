@@ -25,7 +25,12 @@ const hardwareItems = [
   {
     key: 'os',
     label: 'OS Version',
-    getValue: (device) => `Android ${device.android} (SDK ${device.sdk})`,
+    getValue: (device) => {
+      const isIOS = device.platform === 'ios' || device.manufacturer === 'Apple';
+      const osName = isIOS ? 'iOS' : 'Android';
+      const sdkInfo = isIOS ? '' : ` (SDK ${device.sdk})`;
+      return `${osName} ${device.os_version || device.android}${sdkInfo}`;
+    },
     icon: Smartphone,
     colorClass: 'color-blue',
   },
