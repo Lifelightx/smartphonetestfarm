@@ -28,6 +28,13 @@ protean-provider-go/
 │   │   ├── agent.go
 │   │   ├── fsm.go
 │   │   └── agent_test.go
+│   ├── automation/
+│   │   ├── dsl/                ← DSL structure & parsing
+│   │   ├── locator/            ← UI locator engine
+│   │   ├── dsl.go
+│   │   ├── locator.go
+│   │   ├── runner.go
+│   │   └── scheduler.go
 │   ├── config/
 │   │   ├── config.go
 │   │   └── config_test.go
@@ -35,6 +42,12 @@ protean-provider-go/
 │   │   ├── client.go
 │   │   ├── reconnect.go
 │   │   └── client_test.go
+│   ├── coordinator_server/
+│   │   ├── server.go
+│   │   ├── grpc.go
+│   │   └── http.go
+│   ├── db/
+│   │   └── db.go               ← Decoupled database package
 │   ├── domain/
 │   │   ├── device.go
 │   │   ├── events.go

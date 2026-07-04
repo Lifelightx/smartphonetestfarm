@@ -14,10 +14,9 @@ import (
 var zipMagic = []byte{0x50, 0x4B, 0x03, 0x04}
 
 // InstallScrcpyServer copies the scrcpy-server binary at srcPath into the
-// well-known locations used by protean-provider:
+// well-known location used by protean-provider:
 //
 //   - internal/stream/scrcpy-server.jar   (source-tree / dev)
-//   - bin/scrcpy-server.jar               (next to compiled binary, if bin/ exists)
 //
 // The function validates that srcPath is a valid ZIP/JAR archive before
 // overwriting anything, so passing the wrong file will be caught early.
@@ -43,12 +42,6 @@ func InstallScrcpyServer(srcPath string) error {
 	//    Callers are expected to run from the project root.
 	destinations := []string{
 		filepath.Join("internal", "stream", "scrcpy-server.jar"),
-	}
-
-	// Also update bin/ if it already exists (i.e. a previous `make build` ran).
-	binDest := filepath.Join("bin", "scrcpy-server.jar")
-	if _, err := os.Stat(filepath.Dir(binDest)); err == nil {
-		destinations = append(destinations, binDest)
 	}
 
 	// 3. Copy to each destination.

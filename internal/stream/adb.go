@@ -2,46 +2,37 @@ package stream
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 	"log/slog"
 	"os"
 	"os/exec"
-	"path/filepath"
 )
+
+//go:embed scrcpy-server.jar
+var scrcpyServerJarBytes []byte
 
 // ScrcpyServerJarOnDevice is the destination path on the android device.
 const ScrcpyServerJarOnDevice = "/data/local/tmp/scrcpy-server.jar"
 
-// ScrcpyServerJar returns the path to the local scrcpy-server.jar file.
-// It looks next to the running executable first, then falls back to the source-tree location.
-func ScrcpyServerJar() (string, error) {
-	// 1. Next to the binary: <exe-dir>/scrcpy-server.jar
-	if exe, err := os.Executable(); err == nil {
-		p := filepath.Join(filepath.Dir(exe), "scrcpy-server.jar")
-		if _, err := os.Stat(p); err == nil {
-			return p, nil
-		}
-	}
-
-	// 2. Source-tree location: internal/stream/scrcpy-server.jar
-	p := filepath.Join("internal", "stream", "scrcpy-server.jar")
-	if _, err := os.Stat(p); err == nil {
-		return p, nil
-	}
-
-	return "", fmt.Errorf("scrcpy-server.jar not found next to binary or in internal/stream/")
-}
-
 // PushScrcpyServer pushes scrcpy-server.jar to the device and marks it readable.
 func PushScrcpyServer(ctx context.Context, serial string) error {
-	jarPath, err := ScrcpyServerJar()
+	slog.Info("stream: pushing scrcpy-server from embed to device", "serial", serial)
+
+	// Create a temporary file to write the embedded bytes for adb push
+	tmpFile, err := os.CreateTemp("", "scrcpy-server-*.jar")
 	if err != nil {
-		return fmt.Errorf("pushScrcpyServer: %w", err)
+		return fmt.Errorf("create temp file: %w", err)
 	}
+	defer os.Remove(tmpFile.Name())
+	defer tmpFile.Close()
 
-	slog.Info("stream: pushing scrcpy-server to device", "serial", serial, "src", jarPath)
+	if _, err := tmpFile.Write(scrcpyServerJarBytes); err != nil {
+		return fmt.Errorf("write temp file: %w", err)
+	}
+	_ = tmpFile.Close() // Close before pushing so adb can read it cleanly
 
-	out, err := exec.CommandContext(ctx, "adb", "-s", serial, "push", jarPath, ScrcpyServerJarOnDevice).CombinedOutput()
+	out, err := exec.CommandContext(ctx, "adb", "-s", serial, "push", tmpFile.Name(), ScrcpyServerJarOnDevice).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("adb push: %w (out: %s)", err, out)
 	}

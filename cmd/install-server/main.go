@@ -24,7 +24,6 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  Example:\n")
 		fmt.Fprintf(os.Stderr, "    go run ./cmd/install-server ~/test/scrcpy-linux-x86_64-v4.0/scrcpy-server\n\n")
 		fmt.Fprintf(os.Stderr, "  This copies the binary to internal/stream/scrcpy-server.jar\n")
-		fmt.Fprintf(os.Stderr, "  (and bin/scrcpy-server.jar if bin/ already exists).\n")
 		os.Exit(1)
 	}
 

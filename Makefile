@@ -30,7 +30,6 @@ fetch-deps:
 build: fetch-deps
 	@mkdir -p bin
 	go build -buildvcs=false $(LDFLAGS) -o $(BINARY) $(CMD)
-	@cp $(SCRCPY_SERVER) bin/scrcpy-server.jar
 	@echo "✔  built $(BINARY) (version=$(VERSION))"
 
 ## build-coordinator: Compile the coordinator binary into ./bin/
