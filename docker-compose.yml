@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  # 1. PostgreSQL Database Service
+  db:
+    image: postgres:15-alpine
+    container_name: protean-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: "123456"
+      POSTGRES_DB: protean
+    ports:
+      - "5455:5432" # Map to 5455 to keep compatibility with existing host configuration
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d protean"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 2. Go Coordinator Server (REST HTTP + gRPC)
+  coordinator:
+    build:
+      context: .
+      dockerfile: Dockerfile.coordinator
+    container_name: protean-coordinator
+    environment:
+      - COORDINATOR_POSTGRES_URI=postgres://postgres:123456@db:5432/protean?sslmode=disable
+      - COORDINATOR_GRPC_PORT=9000
+      - COORDINATOR_JWT_SECRET=protean-default-secret-key-change-me-123456
+      - BYPASS_AUTH_IN_DEV=false
+    ports:
+      - "9000:9000" # gRPC
+      - "9002:9002" # HTTP API / WebSockets
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # 3. Nginx Static Frontend Service
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: protean-frontend
+    ports:
+      - "5173:80" # Map to port 5173 to mimic the development server port
+    depends_on:
+      - coordinator
+
+  # 4. Optional: Go Provider Service
+  # Note: If managing physical USB-attached devices, running the provider on the host
+  # is recommended. Alternatively, you can run the containerized provider below.
+  provider:
+    build:
+      context: .
+      dockerfile: Dockerfile.provider
+    container_name: protean-provider-node
+    environment:
+      - PROVIDER_COORDINATOR_ADDRESS=coordinator:9000
+      - PROVIDER_ADB_HOST=host.docker.internal # Connect to adb server on host if running
+      - PROVIDER_ADB_PORT=5037
+    network_mode: "host" # Allows seamless interaction with local adb and streaming ports
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - /var/run/usbmuxd:/var/run/usbmuxd # Mount host usbmuxd socket to discover iOS devices
+    depends_on:
+      - coordinator
+    restart: on-failure
+
+volumes:
+  postgres_data:

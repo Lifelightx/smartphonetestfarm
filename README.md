@@ -36,6 +36,15 @@ make build
 make run
 ```
 
+## Authentication
+
+When authentication is enabled (default behavior unless `BYPASS_AUTH_IN_DEV=true` is set), the backend will automatically seed a default administrator user:
+
+- **Email:** `admin@domain.com`
+- **Password:** `Welcome@2026`
+
+For API integrations or custom automation tasks, users can register and manage API keys under the auth service.
+
 ## Documentation
 
 Full technical documentation can be found in the [`docs/`](./docs) directory:

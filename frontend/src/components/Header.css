@@ -13,11 +13,15 @@
   flex-shrink: 0;
   z-index: 100;
 }
+.header-logo-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
 .header-logo {
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-right: 8px;
 }
 .header-title {
   font-family: 'Outfit', sans-serif;
@@ -26,13 +30,38 @@
   color: var(--text);
   letter-spacing: -0.03em;
 }
-.header-subtitle {
-  font-size: 13px;
+.header-nav {
+  display: flex;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  padding: 4px;
+  border-radius: 8px;
+  margin-left: 48px;
+}
+.header-nav-btn {
+  background: transparent;
+  border: none;
   color: var(--text-muted);
-  border-left: 1px solid var(--border);
-  padding-left: 16px;
-  margin-right: auto;
-  font-weight: 500;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.15s ease;
+}
+.header-nav-btn:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.02);
+}
+.header-nav-btn.active {
+  color: #ffffff;
+  background: #6366f1;
+  box-shadow: 0 4px 12px -2px rgba(99, 102, 241, 0.3);
 }
 .theme-toggle-btn {
   background: var(--surface);
@@ -58,3 +87,33 @@
   color: var(--accent);
   display: block;
 }
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.logout-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+  box-shadow: var(--shadow-sm);
+}
+
+.logout-btn:hover {
+  background: var(--red-bg);
+  color: var(--red);
+  border-color: var(--red);
+}
+

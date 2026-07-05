@@ -13,6 +13,7 @@ import (
 
 	pb "protean-provider/pkg/protocol/coordinator"
 
+	"protean-provider/internal/auth"
 	"protean-provider/internal/automation"
 )
 
@@ -22,21 +23,26 @@ type Server struct {
 	db  *DB
 
 	// Active heartbeats tracking: providerID -> cancelFunc
-	mu         sync.Mutex
-	activeHBs  map[string]context.CancelFunc
-	grpcServer *grpc.Server
-	httpServer *http.Server
-	wsManager  *WSManager
-	scheduler  *automation.Scheduler
+	mu          sync.Mutex
+	activeHBs   map[string]context.CancelFunc
+	grpcServer  *grpc.Server
+	httpServer  *http.Server
+	wsManager   *WSManager
+	scheduler   *automation.Scheduler
+	authService *auth.AuthService
 }
 
 func NewServer(cfg Config, db *DB) *Server {
+	jwtMgr := auth.NewJWTManager(cfg.JWTSecret, cfg.JWTIssuer, cfg.OIDCJWKSURL)
+	authSrv := auth.NewAuthService(db, jwtMgr)
+
 	return &Server{
-		cfg:       cfg,
-		db:        db,
-		activeHBs: make(map[string]context.CancelFunc),
-		wsManager: NewWSManager(),
-		scheduler: automation.NewScheduler(),
+		cfg:         cfg,
+		db:          db,
+		activeHBs:   make(map[string]context.CancelFunc),
+		wsManager:   NewWSManager(),
+		scheduler:   automation.NewScheduler(),
+		authService: authSrv,
 	}
 }
 
@@ -70,9 +76,17 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/v1/automation/reports", s.handleReports)
 	mux.HandleFunc("/api/v1/automation/reports/", s.handleReportByID)
 
+	// Admin management endpoints
+	mux.HandleFunc("/api/v1/admin/users", s.handleAdminUsers)
+	mux.HandleFunc("/api/v1/admin/groups", s.handleAdminGroups)
+	mux.HandleFunc("/api/v1/admin/groups/", s.handleAdminGroupAction)
+
+	// Register auth HTTP endpoints
+	s.authService.RegisterHandlers(mux)
+
 	s.httpServer = &http.Server{
 		Addr:    fmt.Sprintf(":%d", httpPort),
-		Handler: corsMiddleware(mux),
+		Handler: corsMiddleware(s.authService.AuthMiddleware(s.cfg.BypassAuthInDev)(mux)),
 	}
 
 	go func() {
@@ -90,7 +104,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return

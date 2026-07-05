@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 
 const COORDINATOR_API = import.meta.env.VITE_COORDINATOR_API || `${window.location.protocol}//${window.location.hostname}:9002`;
 
-export function useDevicesWS() {
+export function useDevicesWS(token) {
   const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [wsError, setWsError] = useState(null);
@@ -16,6 +16,9 @@ export function useDevicesWS() {
       const wsUrl = new URL(COORDINATOR_API);
       wsUrl.protocol = wsUrl.protocol === 'https:' ? 'wss:' : 'ws:';
       wsUrl.pathname = '/api/v1/devices/ws';
+      if (token) {
+        wsUrl.searchParams.set('token', token);
+      }
 
       const ws = new WebSocket(wsUrl.toString());
       wsRef.current = ws;
@@ -97,7 +100,7 @@ export function useDevicesWS() {
         wsRef.current.close();
       }
     };
-  }, []);
+  }, [token]);
 
   return { devices, loading, wsError, setDevices };
 }

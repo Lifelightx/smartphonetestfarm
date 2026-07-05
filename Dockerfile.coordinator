@@ -1,0 +1,33 @@
+# Stage 1: Build the coordinator binary
+FROM golang:1.26-alpine AS builder
+
+# Install build dependencies
+RUN apk add --no-cache git make gcc musl-dev
+
+WORKDIR /app
+
+# Copy dependency files
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy the rest of the source code
+COPY . .
+
+# Build the coordinator
+RUN CGO_ENABLED=0 GOOS=linux go build -buildvcs=false -ldflags "-s -w" -o bin/coordinator ./cmd/coordinator
+
+# Stage 2: Create a minimal runner image
+FROM alpine:latest
+
+RUN apk add --no-cache ca-certificates tzdata curl
+
+WORKDIR /app
+
+# Copy the compiled binary from the builder stage
+COPY --from=builder /app/bin/coordinator /app/coordinator
+
+# Expose the default gRPC and HTTP ports
+EXPOSE 9000 9002
+
+# Run the coordinator binary
+ENTRYPOINT ["/app/coordinator"]

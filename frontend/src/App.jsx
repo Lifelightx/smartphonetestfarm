@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Header from './components/Header';
 import StatsBar from './components/StatsBar';
 import DeviceCard from './components/DeviceCard';
 import DevicePage from './components/DevicePage';
 import DeviceDetailsTable from './components/DeviceDetailsTable';
+import SettingsPanel from './components/SettingsPanel';
+import Login from './components/Login';
 import { useDevicesWS } from './hooks/useDevicesWS';
 import './App.css';
 
@@ -11,12 +13,25 @@ import './App.css';
 const COORDINATOR_API = import.meta.env.VITE_COORDINATOR_API || `${window.location.protocol}//${window.location.hostname}:9002`;
 
 function App() {
-  const { devices, loading: wsLoading, wsError, setDevices } = useDevicesWS();
+  const [token, setToken] = useState(localStorage.getItem('token') || '');
+  const { devices, loading: wsLoading, wsError, setDevices } = useDevicesWS(token);
   const [loading, setLoading] = useState(false);
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
   const [activeTab, setActiveTab] = useState('device');
   const [toasts, setToasts] = useState([]);
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
+  const lastClaimedPath = useRef('');
+
+  const parseJwt = (t) => {
+    try {
+      return JSON.parse(atob(t.split('.')[1]));
+    } catch (e) {
+      return null;
+    }
+  };
+
+  const decoded = token ? parseJwt(token) : null;
+  const isAdmin = decoded?.role === 'admin';
 
   useEffect(() => {
     const handlePopState = () => {
@@ -25,6 +40,20 @@ function App() {
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
+
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      setToken('');
+    };
+    window.addEventListener('auth-unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('auth-unauthorized', handleUnauthorized);
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    setToken('');
+    showToast('Logged out successfully', 'success');
+  };
 
 
 
@@ -131,8 +160,13 @@ function App() {
   };
 
   useEffect(() => {
-    if (activeDevice && activeDevice.status === 'idle') {
-      handleClaim(activeDevice);
+    if (currentPath.startsWith('/device/') && activeDevice && activeDevice.status === 'idle') {
+      if (lastClaimedPath.current !== currentPath) {
+        lastClaimedPath.current = currentPath;
+        handleClaim(activeDevice);
+      }
+    } else if (!currentPath.startsWith('/device/')) {
+      lastClaimedPath.current = '';
     }
   }, [currentPath, activeDevice?.status]);
 
@@ -160,9 +194,25 @@ function App() {
     }
   };
 
+  if (!token) {
+    return <Login onLoginSuccess={(newToken) => setToken(newToken)} />;
+  }
+
   return (
     <div className={`layout ${activeDevice ? 'has-active-device' : ''}`}>
-      <Header theme={theme} toggleTheme={toggleTheme} />
+      <Header 
+        theme={theme} 
+        toggleTheme={toggleTheme} 
+        onLogout={handleLogout} 
+        isAdmin={isAdmin}
+        activeTab={activeTab}
+        onTabChange={(tab) => {
+          setActiveTab(tab);
+          if (activeDevice) {
+            navigate('/');
+          }
+        }}
+      />
 
       <main className="main">
         {activeDevice ? (
@@ -171,15 +221,16 @@ function App() {
             onBack={() => navigate('/')}
             onRelease={() => handleRelease(activeDevice.serial)}
           />
+        ) : activeTab === 'settings' && isAdmin ? (
+          <SettingsPanel
+            token={token}
+            devices={devices}
+            showToast={showToast}
+          />
         ) : (
           <>
             <StatsBar devices={devices} />
 
-             {/* <div className="toolbar">
-               <h2>Connected Devices</h2>
-               
-             </div> */}
- 
              <div className="device-dashboard-tabs">
               <button 
                 className={`tab-nav-btn ${activeTab === 'device' ? 'active' : ''}`} 

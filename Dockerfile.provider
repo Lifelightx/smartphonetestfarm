@@ -1,0 +1,42 @@
+# Stage 1: Build the provider binary
+FROM golang:1.26-alpine AS builder
+
+# Install build dependencies
+RUN apk add --no-cache git make gcc musl-dev curl
+
+WORKDIR /app
+
+# Copy dependency files
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy the rest of the source code
+COPY . .
+
+# Fetch the scrcpy-server dependency
+RUN make fetch-deps
+
+# Build the provider
+RUN CGO_ENABLED=0 GOOS=linux go build -buildvcs=false -ldflags "-s -w" -o bin/provider ./cmd/provider
+
+# Install go-ios tool
+RUN GOBIN=/app/bin go install github.com/danielpaulus/go-ios@latest
+
+# Stage 2: Create a minimal runner image
+FROM alpine:latest
+
+# Install runtime dependencies (such as adb client)
+RUN apk add --no-cache ca-certificates tzdata curl adb
+
+WORKDIR /app
+
+# Copy the compiled binaries and config
+COPY --from=builder /app/bin/provider /app/provider
+COPY --from=builder /app/bin/ios /usr/local/bin/ios
+COPY --from=builder /app/config/provider.yaml /app/config/provider.yaml
+
+# Expose metrics and gRPC server ports
+EXPOSE 9090 9091
+
+# Run the provider binary
+ENTRYPOINT ["/app/provider", "--config", "/app/config/provider.yaml", "--log-level", "debug"]

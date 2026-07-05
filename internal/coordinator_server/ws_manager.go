@@ -21,22 +21,27 @@ type WSEvent struct {
 	Data  interface{} `json:"data"`
 }
 
+type ClientInfo struct {
+	UserID  string
+	IsAdmin bool
+}
+
 // WSManager handles WebSocket client connections and event broadcasting
 type WSManager struct {
 	mu      sync.Mutex
-	clients map[*websocket.Conn]bool
+	clients map[*websocket.Conn]ClientInfo
 }
 
 // NewWSManager creates a new WebSocket manager instance
 func NewWSManager() *WSManager {
 	return &WSManager{
-		clients: make(map[*websocket.Conn]bool),
+		clients: make(map[*websocket.Conn]ClientInfo),
 	}
 }
 
-func (m *WSManager) AddClient(conn *websocket.Conn) {
+func (m *WSManager) AddClient(conn *websocket.Conn, userID string, isAdmin bool) {
 	m.mu.Lock()
-	m.clients[conn] = true
+	m.clients[conn] = ClientInfo{UserID: userID, IsAdmin: isAdmin}
 	m.mu.Unlock()
 }
 

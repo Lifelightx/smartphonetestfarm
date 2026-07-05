@@ -5,7 +5,7 @@ coverage.out
 # Go workspace
 go.work
 go.work.sum
-
+frontend/dist
 # Environment / secrets
 *.env
 .env.*

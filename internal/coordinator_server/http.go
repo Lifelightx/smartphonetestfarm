@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 
+	"protean-provider/internal/auth"
 	"protean-provider/internal/automation"
 	providerpb "protean-provider/pkg/protocol/provider"
 )
@@ -67,20 +68,43 @@ func (s *Server) getDevice(serial string) (*DeviceJSON, error) {
 	return &d, nil
 }
 
-func (s *Server) getDevicesList() ([]DeviceJSON, error) {
-	rows, err := s.db.RawDB().Query(`
-		SELECT serial, provider_ip, model, manufacturer, platform, os_version, android, sdk, abi, ram_mb, storage_mb,
-		       display_width || 'x' || display_height || ' @ ' || display_dpi || 'dpi',
-		       battery, wifi_ssid, ip, status, stream_port, connected_at,
-		       file_system, installed_browsers
-		FROM devices
-		ORDER BY CASE status
-		    WHEN 'claimed' THEN 1
-		    WHEN 'busy' THEN 1
-		    WHEN 'idle' THEN 2
-		    WHEN 'offline' THEN 3
-		    ELSE 4
-		END, connected_at DESC`)
+func (s *Server) getDevicesList(userID string, isAdmin bool) ([]DeviceJSON, error) {
+	var rows *sql.Rows
+	var err error
+	if isAdmin {
+		rows, err = s.db.RawDB().Query(`
+			SELECT serial, provider_ip, model, manufacturer, platform, os_version, android, sdk, abi, ram_mb, storage_mb,
+			       display_width || 'x' || display_height || ' @ ' || display_dpi || 'dpi',
+			       battery, wifi_ssid, ip, status, stream_port, connected_at,
+			       file_system, installed_browsers
+			FROM devices
+			ORDER BY CASE status
+			    WHEN 'claimed' THEN 1
+			    WHEN 'busy' THEN 1
+			    WHEN 'idle' THEN 2
+			    WHEN 'offline' THEN 3
+			    ELSE 4
+			END, connected_at DESC`)
+	} else {
+		rows, err = s.db.RawDB().Query(`
+			SELECT d.serial, d.provider_ip, d.model, d.manufacturer, d.platform, d.os_version, d.android, d.sdk, d.abi, d.ram_mb, d.storage_mb,
+			       d.display_width || 'x' || d.display_height || ' @ ' || d.display_dpi || 'dpi',
+			       d.battery, d.wifi_ssid, d.ip, d.status, d.stream_port, d.connected_at,
+			       d.file_system, d.installed_browsers
+			FROM devices d
+			WHERE EXISTS (
+				SELECT 1 FROM device_groups dg
+				INNER JOIN user_groups ug ON dg.group_id = ug.group_id
+				WHERE dg.serial = d.serial AND ug.user_id = $1
+			)
+			ORDER BY CASE d.status
+			    WHEN 'claimed' THEN 1
+			    WHEN 'busy' THEN 1
+			    WHEN 'idle' THEN 2
+			    WHEN 'offline' THEN 3
+			    ELSE 4
+			END, d.connected_at DESC`, userID)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +139,17 @@ func (s *Server) handleListDevices(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	list, err := s.getDevicesList()
+	userInfo, ok := auth.FromContext(r.Context())
+	var list []DeviceJSON
+	var err error
+	if ok && userInfo.Role == "admin" {
+		list, err = s.getDevicesList("", true)
+	} else if ok {
+		list, err = s.getDevicesList(userInfo.ID, false)
+	} else {
+		list, err = s.getDevicesList("", true)
+	}
+
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -126,11 +160,28 @@ func (s *Server) handleListDevices(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) broadcastFullList() {
-	list, err := s.getDevicesList()
-	if err == nil {
-		s.wsManager.Broadcast("DEVICE_LIST_UPDATE", list)
-	} else {
-		slog.Error("coordinator: failed to get device list for broadcast", "err", err)
+	s.wsManager.mu.Lock()
+	defer s.wsManager.mu.Unlock()
+
+	for conn, info := range s.wsManager.clients {
+		list, err := s.getDevicesList(info.UserID, info.IsAdmin)
+		if err != nil {
+			slog.Error("coordinator: failed to get device list for broadcast", "userID", info.UserID, "err", err)
+			continue
+		}
+		msg := WSEvent{
+			Event: "DEVICE_LIST_UPDATE",
+			Data:  list,
+		}
+		b, err := json.Marshal(msg)
+		if err != nil {
+			slog.Error("coordinator: ws marshal error", "err", err)
+			continue
+		}
+		if err := conn.WriteMessage(websocket.TextMessage, b); err != nil {
+			conn.Close()
+			delete(s.wsManager.clients, conn)
+		}
 	}
 }
 
@@ -362,10 +413,18 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.wsManager.AddClient(conn)
+	userInfo, ok := auth.FromContext(r.Context())
+	userID := ""
+	isAdmin := true
+	if ok {
+		userID = userInfo.ID
+		isAdmin = (userInfo.Role == "admin")
+	}
+
+	s.wsManager.AddClient(conn, userID, isAdmin)
 	defer s.wsManager.RemoveClient(conn)
 
-	list, err := s.getDevicesList()
+	list, err := s.getDevicesList(userID, isAdmin)
 	if err == nil {
 		msg := WSEvent{
 			Event: "DEVICE_LIST_UPDATE",
