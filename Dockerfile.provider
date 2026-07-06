@@ -26,13 +26,13 @@ RUN GOBIN=/app/bin go install github.com/danielpaulus/go-ios@latest
 FROM alpine:latest
 
 # Install runtime dependencies (such as adb client)
-RUN apk add --no-cache ca-certificates tzdata curl adb
+RUN apk add --no-cache ca-certificates tzdata curl android-tools-adb
 
 WORKDIR /app
 
 # Copy the compiled binaries and config
 COPY --from=builder /app/bin/provider /app/provider
-COPY --from=builder /app/bin/ios /usr/local/bin/ios
+COPY --from=builder /app/bin/go-ios /usr/local/bin/ios
 COPY --from=builder /app/config/provider.yaml /app/config/provider.yaml
 
 # Expose metrics and gRPC server ports

@@ -1,0 +1,16 @@
+
+services:
+  provider:
+    build:
+      context: .
+      dockerfile: Dockerfile.provider
+    container_name: protean-provider-node
+    image: go-provider:v1
+    environment:
+      - PROVIDER_COORDINATOR_ADDRESS=127.0.0.1:9000 # Set to the coordinator's IP or hostname (e.g., central-server:9000)
+      - PROVIDER_ADB_HOST=127.0.0.1                  # Connects to the host's local ADB daemon
+      - PROVIDER_ADB_PORT=5037
+    network_mode: "host"                             # Shares host network for direct port/ADB communication
+    volumes:
+      - /var/run/usbmuxd:/var/run/usbmuxd            # Share usbmuxd socket for iOS discovery
+    restart: on-failure
