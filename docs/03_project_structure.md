@@ -7,79 +7,52 @@ Every file and folder in `protean-provider-go` — what it is, what it does, and
 ## Full Tree
 
 ```
-protean-provider-go/
+protean-provider/
 │
 ├── cmd/
+│   ├── coordinator/
+│   │   └── main.go             ← Coordinator entrypoint
+│   ├── install-server/
+│   │   └── main.go             ← Install server entrypoint
 │   └── provider/
-│       └── main.go
+│       └── main.go             ← Edge provider entrypoint
 │
 ├── config/
-│   └── provider.yaml
+│   └── provider.yaml           ← Default provider config
+│
+├── frontend/                   ← React Vite Frontend
+│   ├── dist/                   ← Production build output
+│   ├── src/                    ← React source code (App, Login, Settings, etc.)
+│   ├── nginx.conf              ← Nginx configuration for Docker serving
+│   ├── package.json
+│   └── vite.config.js
 │
 ├── internal/
-│   ├── app/
-│   │   └── app.go
-│   ├── adb/
-│   │   ├── client.go
-│   │   ├── tracker.go
-│   │   ├── properties.go
-│   │   └── tracker_test.go
-│   ├── agent/
-│   │   ├── agent.go
-│   │   ├── fsm.go
-│   │   └── agent_test.go
-│   ├── automation/
+│   ├── adb/                    ← Android Debug Bridge client and tracking
+│   ├── agent/                  ← Per-device state machine (FSM)
+│   ├── app/                    ← Root app wiring
+│   ├── auth/                   ← JWT authentication and middleware
+│   ├── automation/             ← Native Automation execution engine
 │   │   ├── dsl/                ← DSL structure & parsing
-│   │   ├── locator/            ← UI locator engine
-│   │   ├── dsl.go
-│   │   ├── locator.go
-│   │   ├── runner.go
-│   │   └── scheduler.go
-│   ├── config/
-│   │   ├── config.go
-│   │   └── config_test.go
-│   ├── coordinator/
-│   │   ├── client.go
-│   │   ├── reconnect.go
-│   │   └── client_test.go
-│   ├── coordinator_server/
-│   │   ├── server.go
-│   │   ├── grpc.go
-│   │   └── http.go
-│   ├── db/
-│   │   └── db.go               ← Decoupled database package
-│   ├── domain/
-│   │   ├── device.go
-│   │   ├── events.go
-│   │   ├── interfaces.go
-│   │   ├── provider.go
-│   │   └── errors.go
-│   ├── grpc/
-│   │   ├── server.go
-│   │   ├── handler.go
-│   │   └── middleware.go
-│   ├── logger/
-│   │   ├── logger.go
-│   │   └── context.go
-│   ├── metrics/
-│   │   ├── metrics.go
-│   │   └── server.go
-│   ├── registry/
-│   │   ├── registry.go
-│   │   └── registry_test.go
-│   ├── stream/
-│   │   ├── manager.go
-│   │   ├── mjpeg.go
-│   │   ├── relay.go
-│   │   └── manager_test.go
-│   └── supervisor/
-│       ├── supervisor.go
-│       └── supervisor_test.go
+│   │   └── locator/            ← UI locator tree and element scoring
+│   ├── config/                 ← Viper config parsing
+│   ├── coordinator/            ← Coordinator client reconnect & registry
+│   ├── coordinator_server/     ← HTTP REST, WebSockets & gRPC coordinator APIs
+│   ├── db/                     ← Database integration & migrations (PostgreSQL)
+│   ├── domain/                 ← Core business domain structs and interfaces
+│   ├── goios/                  ← go-ios command wrapper and tracker
+│   ├── grpc/                   ← Provider inbound health servers
+│   ├── logger/                 ← Structured slog logging context
+│   ├── metrics/                ← Prometheus scraping server
+│   ├── platform/               ← Dual-platform manager (Android vs iOS) factory
+│   ├── registry/               ← Device registry thread-safe sync.Map
+│   ├── stream/                 ← MJPEG / H.264 streams and input relay
+│   ├── supervisor/             ← Spawn and lifecycle check for agents
+│   ├── utils/                  ← Common helper functions (ports, scrcpy, etc.)
+│   └── wda/                    ← WebDriverAgent HTTP API client wrapping iOS controls
 │
 ├── pkg/
 │   └── protocol/
-│       ├── gen.go
-│       └── stf/
 │           ├── provider.proto
 │           ├── provider.pb.go          ← generated
 │           └── provider_grpc.pb.go     ← generated
@@ -88,21 +61,12 @@ protean-provider-go/
 │   ├── gen-certs.sh
 │   └── install-tools.sh
 │
-├── deploy/
-│   ├── Dockerfile
-│   ├── docker-compose.yml
-│   └── provider.service
-│
-├── docs/                               ← YOU ARE HERE
-│
-├── .github/
-│   └── workflows/
-│       ├── ci.yml
-│       └── release.yml
-│
-├── .golangci.yml
-├── buf.gen.yaml
-├── buf.yaml
+├── Dockerfile.coordinator      ← Dockerfile for Coordinator container
+├── Dockerfile.frontend         ← Dockerfile for Frontend static hosting
+├── Dockerfile.provider         ← Dockerfile for Edge Provider daemon
+├── docker-compose.yml          ← Orchestrates PostgreSQL, Coordinator, and Frontend
+├── docker-compose.provider.yml ← Dedicated standalone provider compose file
+├── .gitignore
 ├── Makefile
 ├── go.mod
 ├── go.sum
@@ -428,31 +392,75 @@ provider_grpc_calls_total           counter   labels: method, status
 
 ---
 
-### `deploy/Dockerfile`
-**Multi-stage Docker build.**
-- Stage 1: `golang:1.21-alpine` — compiles binary
-- Stage 2: `alpine:3.19` — runtime, installs `android-tools` (for adb)
-- Final image size target: < 50 MB
+### `Dockerfile.provider`
+**Multi-stage Alpine-based Dockerfile to build and package the provider daemon.**
+- Builds static `provider` binary using Go 1.25.
+- Installs local `go-ios` tool binary compiled to `/usr/local/bin/ios`.
+- Packs `android-tools-adb` client runtime tools.
 
 ---
 
-### `deploy/provider.service`
-**Systemd unit for bare-metal / VM deployment.**
-- `After=network.target`
-- `Restart=on-failure` with 5s delay
-- `ExecStart=/usr/local/bin/provider --config /etc/stf/provider.yaml`
-- Logs go to journald
+### `Dockerfile.coordinator`
+**Docker image for compiling and hosting the Coordinator service.**
+- Packs all gRPC and HTTP APIs, database migrations, and web sockets.
 
 ---
 
-### `.golangci.yml`
-**Linter configuration for `golangci-lint`.**
+### `Dockerfile.frontend`
+**Docker image for building and hosting the React application frontend.**
+- Compiles source React/Vite files to `dist/` and hosts via Nginx.
 
-Enabled linters:
-- `errcheck` — all errors must be handled
-- `govet` — Go vet checks
-- `staticcheck` — static analysis
-- `revive` — style rules
-- `gocyclo` — cyclomatic complexity limit
-- `misspell` — spelling in comments
-- `gocritic` — code style suggestions
+---
+
+### `docker-compose.yml`
+**Core orchestration stack for local development.**
+- Fires up PostgreSQL database `protean-db`, `protean-coordinator`, and `protean-frontend`.
+
+---
+
+### `docker-compose.provider.yml`
+**Dedicated compose file for the standalone Edge Provider Node.**
+- Sets host network mode to automatically bind ports.
+- Mounts `/var/run/usbmuxd` for discovering connected iOS devices.
+
+---
+
+### `internal/auth/`
+**Authentication & Authorization engine.**
+- `jwt.go`: Validates signed RSA/HMAC JSON Web Tokens and OIDC JWKS.
+- `middleware.go`: Extracts and parses tokens, seeding User info to Go context.
+- `handlers.go`: HTTP endpoints for local register/login and token renewals.
+
+---
+
+### `internal/db/`
+**PostgreSQL migration and storage logic.**
+- Manages connection pools and database schema initialization.
+- CRUD operations for users, groups, devices, API keys, scripts, and reports.
+
+---
+
+### `internal/platform/`
+**Multi-platform Manager Factory.**
+- Exposes `DeviceManager`, `AppManager`, and `Streamer` interfaces.
+- Standardizes hardware discovery, package installations, and screen capture logic across both Android and iOS platforms.
+
+---
+
+### `internal/goios/`
+**Go wrapper for native iOS interactions.**
+- Speaks directly to the `usbmuxd` socket daemon for discovering connected iOS devices.
+- Performs syslog streaming, bundle launch, and app installations.
+
+---
+
+### `internal/wda/`
+**WebDriverAgent client for iOS remote interaction.**
+- Coordinates low-latency keyboard inputs, screenshots, session lifecycle, and touch coordinates scaling using W3C Actions.
+
+---
+
+### `internal/utils/`
+**Common utility and helper functions.**
+- Standardized port range checking, scrcpy/adb subprocess monitoring, and network IP helpers.
+

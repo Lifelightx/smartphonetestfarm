@@ -149,14 +149,42 @@ Phase 3 introduces advanced test stability features to handle real-world latency
 
 ---
 
-## 7. Next Steps (Roadmap)
+## 7. Completed Phase 4 Implementation
 
-### Phase 4: Parallel Test Execution & API Layer
-* **Parallel Test Runner**: Implement a thread-safe scheduler to orchestrate test script replays concurrently across multiple physical or virtual device serials.
-* **REST/gRPC Trigger Endpoints**: Add API endpoints to upload scripts, list reports, and inspect failures from the STF Dashboard.
+Phase 4 introduces parallel test execution management and persistence infrastructure for script execution.
 
-### Phase 5: iOS Integration & Advanced Locators
-* **WDA Client Integration**: Build `IOSDriver` implementing `domain.Driver` mapping actions directly to Xcode's WebDriverAgent HTTP API.
-* **WebStream Canvas Recorder**: Connect the pointer coordinates captured on the web dashboard to the active `RecorderManager` to generate scripts dynamically.
+### Implemented Capabilities:
+1. **Parallel Execution Scheduler (`internal/automation/scheduler.go`):**
+   * Implements a thread-safe task worker pool that runs automation test scripts concurrently across available device instances.
+   * Leverages channels to queue execution events and manage concurrency limits.
+2. **Coordinator API Layer (`internal/coordinator_server/`):**
+   * Exposes REST endpoints to upload/inspect automation scripts and retrieve step-by-step execution runs.
+   * Connects incoming API key and JWT authentication middleware to restrict execution to authorized users/groups.
+3. **Database Integration (`internal/db/`):**
+   * Implements relational storage tables `automation_scripts` and `automation_reports` to store scripts, run metrics (passed steps, total time), and error messages.
+
+---
+
+## 8. Completed Phase 5 Implementation
+
+Phase 5 completes dual-platform automation support by adding native iOS interaction capabilities.
+
+### Implemented Capabilities:
+1. **IOSDriver (`internal/automation/ios_driver.go`):**
+   * **WDA Client Integration**: Communicates directly with Apple's WebDriverAgent (WDA) server running on the iOS device (bridged via a local TCP port tunnel).
+   * **App Lifecycle**: Implements `Launch` and `Terminate` commands by hitting the `/session/:id/launch` and `/session/:id/terminate` endpoints.
+   * **Coordinate Translation & Tap**: Taps target elements using normalized coordinate scale bounds (`[0, 1]`) multiplied by WDA's native frame size queried via `/session/:id/window/size`.
+   * **Touch Actions and Swipes**: Invokes low-latency swipe gestures using standard W3C multi-action payloads sent to `/session/:id/actions`.
+   * **Keyboard Input**: Focuses key targets and inputs text characters via `/session/:id/keys`.
+   * **UI Dumps & Size**: Fetches full accessibility XML trees using the sessionless or session-scoped `/source?format=xml` endpoints.
+
+---
+
+## 9. Next Steps (Roadmap)
+
+### Phase 6: Extended AI Self-Healing & Visual Regression
+* **Self-Healing Selectors**: Integrate lightweight vision-language models or fuzzy selector engines to automatically heal broken Resource ID/Text locators during UI updates.
+* **Canvas Recorder UI**: Connect dashboard mouse/pointer movements on the live canvas stream directly to the `Recorder` to generate test yaml scripts interactively.
+
 
 

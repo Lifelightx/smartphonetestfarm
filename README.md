@@ -1,57 +1,90 @@
-# Protean Provider
+# Mobile Device Farm
 
-Protean Provider is a production-grade edge daemon written in Go that acts as a bridge between physical mobile devices (Android and iOS) and the Protean Coordinator. It allows for remote device farm management, low-latency screen streaming, and robust native device automation.
+A high-performance, containerized, self-hosted Mobile Device Farm for real-time remote control, screen streaming, and native test automation of physical Android and iOS devices.
 
-## Key Features
+---
 
-- **Cross-Platform Device Management**: Seamlessly tracks and manages both Android (via ADB) and iOS devices (via go-ios and WebDriverAgent).
-- **High-Performance Screen Streaming**:
-  - **Android**: Supports direct H.264 streaming and WebSocket broadcasting for smooth playback in the browser.
-  - **iOS**: Utilizes high-performance MJPEG streaming over WebSocket, configured for optimal framerates and quality without compromising on latency.
-- **Ultra Low-Latency Interactive Control**:
-  - **Android**: Native touch and key event injection.
-  - **iOS**: Employs the W3C Actions API via WebDriverAgent to bypass legacy element resolution, achieving near-instantaneous touch, swipe, and keyboard input response times.
-- **Native Automation Engine**: Ships with a robust automation framework for executing dynamic scripts (e.g., UI interactions, assertions, app launching/termination) natively on the device without relying on heavy external wrappers like Appium.
-- **gRPC Coordination**: Maintains a persistent, reliable heartbeat and bi-directional control stream with the central coordinator to handle dynamic device allocation and releases.
+## 1. System Architecture
 
-## Getting Started
+The farm consists of three main components designed to run in isolated Docker containers:
 
-### Prerequisites
-- Go 1.21+
-- ADB (for Android support)
-- go-ios and WebDriverAgent (for iOS support)
-- Make
+1. **Central Infrastructure Stack** (`docker-compose.yml`):
+   - **Database**: PostgreSQL 16 for user registry, authorization policies, and test reports.
+   - **Coordinator Server**: Orchestrates device states, claims/releases, WebSocket streams, and test job scheduling.
+   - **Frontend UI**: Web-based dashboard for remote screen mirroring, user login, and execution monitoring.
+2. **Edge Provider Node** (`docker-compose.provider.yml`):
+   - A lightweight daemon running on hosts connected to physical hardware. It tracks device attachments, captures low-latency screen streams, and injects interactive pointer/keyboard events.
 
-### Quick Start
+---
+
+## 2. Prerequisites
+
+- **Docker & Docker Compose** (for running the containerized services)
+- **ADB Daemon** (running on host for Android device connectivity)
+- **usbmuxd** (running on host/mounted socket for iOS device connectivity)
+
+---
+
+## 3. Getting Started (Containerized Setup)
+
+### Step 1: Deploy Central Infrastructure
+On your primary orchestrator/management server, run the following command to boot the database, coordinator server, and frontend dashboard:
 
 ```bash
-# 1. Clone the repository
-git clone <repo>
-cd protean-provider
+docker compose up -d --build
+```
+*The web dashboard is now accessible at `http://<coordinator-ip>:5173`.*
 
-# 2. Build the project
-make build
+### Step 2: Deploy Edge Provider Nodes
+On each machine directly connected to Android/iOS devices via USB:
+1. Ensure `adb` and `usbmuxd` are running on the host.
+2. Update the environment variables in `docker-compose.provider.yml` to point to the Coordinator's IP address.
+3. Start the edge provider container using host network mode:
 
-# 3. Run the provider
-make run
+```bash
+docker compose -f docker-compose.provider.yml up -d --build
 ```
 
-## Authentication
+---
 
-When authentication is enabled (default behavior unless `BYPASS_AUTH_IN_DEV=true` is set), the backend will automatically seed a default administrator user:
+## 4. Default Credentials
 
-- **Email:** `admin@domain.com`
-- **Password:** `Welcome@2026`
+The system automatically initializes a default Administrator account on startup. Use these credentials to sign in to the web panel:
 
-For API integrations or custom automation tasks, users can register and manage API keys under the auth service.
+- **Username / Email**: `admin@domain.com`
+- **Password**: `Welcome@2026`
 
-## Documentation
+> [!WARNING]
+> It is highly recommended to change the default password in the dashboard settings panel immediately after the first login.
 
-Full technical documentation can be found in the [`docs/`](./docs) directory:
+---
 
-- [Overview & BRD](./docs/01_overview_and_brd.md)
+## 5. Development and Manual Build
+
+For local development without Docker, compile and run the services manually:
+
+```bash
+# 1. Fetch dependencies and compile binaries
+make build-all
+
+# 2. Run the coordinator server
+make run-coordinator
+
+# 3. Run the edge provider daemon
+make run
+
+# 4. Start the frontend developer server
+make run-frontend
+```
+
+---
+
+## 6. Technical Documentation
+
+Detailed guides covering internal protocols, structure, and customization can be found in the [`docs/`](./docs) folder:
+
 - [System Architecture](./docs/02_architecture.md)
-- [Project Structure](./docs/03_project_structure.md)
-- [Automation Framework](./docs/13_automation_framework.md)
-
-See [`docs/README.md`](./docs/README.md) for the complete table of contents.
+- [Project Directory Layout](./docs/03_project_structure.md)
+- [Configuration Reference](./docs/05_configuration.md)
+- [Native Automation Framework](./docs/13_automation_framework.md)
+- [Authentication & RBAC Integration](./docs/15_auth_and_rbac_integration.md)

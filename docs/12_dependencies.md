@@ -1,6 +1,6 @@
 # 12 — Dependencies
 
-All Go packages used in `protean-provider-go`, with version recommendations and justification.
+All Go packages used in the `protean-provider` and `protean-coordinator` repository, with their purpose and justification.
 
 ---
 
@@ -8,94 +8,34 @@ All Go packages used in `protean-provider-go`, with version recommendations and 
 
 | Package | Version | Purpose | Why this one |
 |---------|---------|---------|--------------|
-| `github.com/codeskyblue/go-adbkit` | `v0.3.0` | ADB communication — connect to ADB daemon, list devices, shell commands | Already in use; pure Go, no CGO |
-| `google.golang.org/grpc` | `v1.64.0` | gRPC transport for Coordinator communication | Official Google gRPC for Go |
-| `google.golang.org/protobuf` | `v1.34.0` | Protobuf serialization / deserialization | Required by gRPC |
-| `google.golang.org/genproto/googleapis/rpc` | `latest` | Well-known gRPC status types | Required by gRPC |
-| `github.com/spf13/viper` | `v1.18.0` | YAML config loading + env var override | De-facto standard; supports all config sources |
-| `github.com/go-playground/validator/v10` | `v10.22.0` | Struct tag-based config validation | Most complete Go validator |
-| `github.com/prometheus/client_golang` | `v1.19.0` | Prometheus metrics | Official Prometheus client |
-| `golang.org/x/sync` | `v0.7.0` | `errgroup` for goroutine lifecycle | Standard Go extended library |
-| `github.com/google/uuid` | `v1.6.0` | UUID generation for provider ID and correlation IDs | Widely used, zero dependencies |
-| `golang.org/x/net` | `v0.26.0` | HTTP/2 support (needed by gRPC) | Required by gRPC |
-| `golang.org/x/sys` | `v0.22.0` | OS-level syscalls (signal handling) | Required by dependencies |
-| `golang.org/x/text` | `v0.16.0` | Text encoding | Required by dependencies |
+| `github.com/lib/pq` | `v1.12.3` | PostgreSQL database driver | Standard, pure Go PostgreSQL driver. Used for coordinator users, groups, and automation reporting. |
+| `github.com/golang-jwt/jwt/v5` | `v5.3.1` | JSON Web Token (JWT) library | Standard Go library for generating and validating claims and cryptographic signatures. |
+| `golang.org/x/crypto` | `v0.48.0` | Cryptographic algorithms (bcrypt) | Used for hashing user passwords securely. |
+| `github.com/gorilla/websocket` | `v1.5.3` | WebSocket communication | Used by the coordinator server to broadcast device states and relay interactive commands/streams. |
+| `github.com/Eyevinn/mp4ff` | `v0.52.0` | MP4/H.264 parser & multiplexer | Used to parse, modify, and stream raw H.264 video streams from iOS WebDriverAgent connections. |
+| `github.com/codeskyblue/go-adbkit` | `v0.3.0` | ADB protocol library | Pure Go implementation of the ADB host client protocol to list and manage Android devices. |
+| `google.golang.org/grpc` | `v1.81.1` | gRPC framework | Remote procedure call transport linking provider nodes to the central coordinator. |
+| `google.golang.org/protobuf` | `v1.36.11` | Protobuf serialization | Binary protocol compiler runtime for gRPC messages. |
+| `github.com/spf13/viper` | `v1.18.2` | Configuration loader | Handles reading, parsing, and env-var overriding of YAML configs. |
+| `github.com/go-playground/validator/v10` | `v10.22.0` | Struct field validation | Used for validator tag assertions on configuration load. |
+| `github.com/google/uuid` | `v1.6.0` | UUID generation | Generates unique IDs for sessions, scripts, reports, and providers. |
 
 ---
 
-## 2. Test-Only Dependencies
+## 2. Development and Test Tools
 
-| Package | Version | Purpose |
-|---------|---------|---------|
-| `github.com/stretchr/testify` | `v1.9.0` | `assert`, `require`, `mock` — test assertions |
-| `github.com/stretchr/objx` | `v0.5.2` | Required by `testify/mock` |
-| `google.golang.org/grpc/test/bufconn` | (part of grpc) | In-process gRPC server for coordinator tests |
-
----
-
-## 3. Development Tools (not in go.mod)
-
-Install with `make install-tools`:
-
-| Tool | Install Command | Purpose |
-|------|----------------|---------|
-| `buf` | `go install github.com/bufbuild/buf/cmd/buf@latest` | Protobuf code generation (replaces protoc) |
-| `golangci-lint` | `go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest` | Multi-linter runner |
-| `protoc-gen-go` | `go install google.golang.org/protobuf/cmd/protoc-gen-go@latest` | Go protobuf generator (used by buf) |
-| `protoc-gen-go-grpc` | `go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest` | gRPC service generator (used by buf) |
+| Tool / Package | Install Method | Purpose |
+|----------------|----------------|---------|
+| `buf` | `go install github.com/bufbuild/buf/cmd/buf@latest` | Fast, robust Protobuf/gRPC generation tool. |
+| `golangci-lint` | `go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest` | Aggregate linter utility. |
+| `scrcpy-server` | `make fetch-deps` | Official Genymobile scrcpy jar (v4.0) embedded into the provider. |
+| `go-ios` | `go install github.com/danielpaulus/go-ios@latest` | Command line wrapper for iOS connection and tunnel assembly. |
 
 ---
 
-## 4. go.mod (Target State)
+## 3. Dependency Update Policy
 
-```go
-module protean-provider
+- **Version Lock**: Pin exact versions in `go.mod` (avoiding tags like `latest` or ranges) to ensure build reproducibility.
+- **Coordination**: Coordinate gRPC and protobuf libraries to remain fully compatible.
+- **Security Scans**: Periodically audit dependencies via `go list -m -u all` and address CVE vulnerability alerts.
 
-go 1.21.0
-
-require (
-    github.com/codeskyblue/go-adbkit v0.3.0
-    github.com/go-playground/validator/v10 v10.22.0
-    github.com/google/uuid v1.6.0
-    github.com/prometheus/client_golang v1.19.0
-    github.com/spf13/viper v1.18.0
-    github.com/stretchr/testify v1.9.0
-    golang.org/x/sync v0.7.0
-    google.golang.org/grpc v1.64.0
-    google.golang.org/protobuf v1.34.0
-)
-
-require (
-    // indirect deps — managed by go mod tidy
-    github.com/stretchr/objx v0.5.2 // indirect
-    golang.org/x/net v0.26.0 // indirect
-    golang.org/x/sys v0.22.0 // indirect
-    golang.org/x/text v0.16.0 // indirect
-    google.golang.org/genproto/googleapis/rpc v0.0.0-20240610135401-a8a62080eff3 // indirect
-)
-```
-
----
-
-## 5. Why NOT These Packages
-
-| Package | Why Avoided |
-|---------|-------------|
-| `github.com/pebbe/zmq4` | Requires CGO + libzmq C library — breaks pure Go binary |
-| `github.com/gin-gonic/gin` | Not needed (provider has no REST API) |
-| `github.com/sirupsen/logrus` | Superseded by stdlib `log/slog` in Go 1.21 |
-| `go.uber.org/zap` | `log/slog` is sufficient; avoids extra dependency |
-| `gorm.io/gorm` | Provider has no database — belongs in coordinator |
-| `github.com/gorilla/websocket` | Not needed in provider — belongs in API gateway |
-| `github.com/rs/zerolog` | `log/slog` preferred for stdlib alignment |
-
----
-
-## 6. Dependency Update Policy
-
-- Review dependency updates monthly
-- Use `go get -u ./...` to check for updates
-- Never update `google.golang.org/grpc` and `google.golang.org/protobuf` independently — they must be compatible versions
-- Pin exact versions in `go.mod` — no `latest` or ranges
-- Run `go mod tidy` after any update
-- Run `go test -race ./...` after any update before committing

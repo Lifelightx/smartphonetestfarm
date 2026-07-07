@@ -70,16 +70,18 @@ The existing STF (Smartphone Test Farm) Node.js provider:
 
 ---
 
-## 4. Non-Goals (Out of Scope for This Repo)
+## 4. Scope and Non-Goals
 
-| Item | Owner |
-|------|-------|
-| Web UI / dashboard | `protean-app` (Angular frontend) |
-| Device booking logic | `protean-coordinator` |
-| User authentication | `protean-coordinator` / `protean-api` |
-| Appium test execution | `protean-bridge` |
-| Windows device support | Future scope |
-| REST API for external clients | `protean-api` |
+### In Scope for This Repository
+- **Edge Provider Daemon**: Handles ADB/go-ios connections, device tracking, MJPEG/H.264 streaming, and native touch/key/WDA gesture event injection.
+- **Central Coordinator Server**: Embedded server supporting gRPC/HTTP endpoints, device booking/allocation management, WebSocket broadcasting, and automation execution scheduler.
+- **Authentication & RBAC**: Comprehensive JWT & OIDC authentication with group-based device tenancy and API key support, built-in postgres schema migrations.
+- **Vite React Frontend**: Live dashboard with login page, settings panel, device control panel, and media playback tabs.
+
+### Out of Scope (Non-Goals)
+- **Windows / macOS Host Support**: Remote control and execution are limited to Android and iOS devices connected to Linux/macOS edge nodes.
+- **Appium dependency**: The automation runner executes natively without Appium client wrappers.
+
 
 ---
 

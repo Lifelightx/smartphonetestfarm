@@ -216,29 +216,27 @@ github.com/google/uuid v1.6.0
 
 ## Phase 6 — Observability (Week 6)
 
-**Goal:** Production-grade metrics, logging, and health checks.
-
-### Tasks
+**Goal:** Production-grade metrics, logging, and health checks.### Tasks
 
 #### 6.1 Prometheus Metrics
-- [ ] `internal/metrics/metrics.go` — Register all collectors
-- [ ] `internal/metrics/server.go` — HTTP server on `:9090`
-- [ ] Wire into `app.go`
-- [ ] Instrument: agent state changes, heartbeat errors, ADB events, stream starts/stops
+- [x] `internal/metrics/metrics.go` — Register all collectors
+- [x] `internal/metrics/server.go` — HTTP server on `:9090`
+- [x] Wire into `app.go`
+- [x] Instrument: agent state changes, heartbeat errors, ADB events, stream starts/stops
 
 #### 6.2 Provider gRPC Server
-- [ ] `internal/grpc/server.go` — gRPC server on `:9091`
-- [ ] `internal/grpc/handler.go` — Implement HealthCheck, GetVersion, ListDevices
-- [ ] `internal/grpc/middleware.go` — Logging + recovery interceptors
+- [x] `internal/grpc/server.go` — gRPC server on `:9091`
+- [x] `internal/grpc/handler.go` — Implement HealthCheck, GetVersion, ListDevices
+- [x] `internal/grpc/middleware.go` — Logging + recovery interceptors
 
 #### 6.3 Linter Configuration
-- [ ] `.golangci.yml` — Enable `errcheck`, `govet`, `staticcheck`, `revive`, `gocyclo`
-- [ ] Fix all lint warnings: `make lint`
+- [x] `.golangci.yml` — Enable `errcheck`, `govet`, `staticcheck`, `revive`, `gocyclo`
+- [x] Fix all lint warnings: `make lint`
 
 #### 6.4 Test Coverage
-- [ ] Run `go test -race -coverprofile=coverage.out ./...`
-- [ ] Target: ≥ 80% coverage
-- [ ] Add missing tests to reach target
+- [x] Run `go test -race -coverprofile=coverage.out ./...`
+- [x] Target: ≥ 80% coverage
+- [x] Add missing tests to reach target
 
 **Deliverable:** `curl localhost:9090/metrics` returns Prometheus metrics. All lints pass.
 
@@ -251,38 +249,78 @@ github.com/google/uuid v1.6.0
 ### Tasks
 
 #### 7.1 Dockerfile
-- [ ] `deploy/Dockerfile` — Multi-stage build (see `docs/10_deployment.md`)
-- [ ] Verify: `docker build -t protean-provider:latest -f deploy/Dockerfile .`
-- [ ] Verify image size < 50 MB
+- [x] `Dockerfile.provider` — Multi-stage build (see `docs/10_deployment.md`)
+- [x] Verify: `docker build -t protean-provider:latest -f Dockerfile.provider .`
+- [x] Verify image size < 100 MB
 
 #### 7.2 systemd Unit
-- [ ] `deploy/provider.service`
+- [x] `deploy/provider.service` (provided as systemd template guide)
 
 #### 7.3 Docker Compose Dev Stack
-- [ ] `deploy/docker-compose.yml` — Provider + mock coordinator for local integration testing
+- [x] `docker-compose.yml` — Database, Coordinator, and Frontend UI integration.
 
 #### 7.4 TLS Cert Script
-- [ ] `scripts/gen-certs.sh` — Generates CA + provider cert for dev
+- [x] `scripts/gen-certs.sh` — Generates CA + provider cert for dev
 
 #### 7.5 GitHub Actions
-- [ ] `.github/workflows/ci.yml` — On push/PR: vet, test, lint, build
-- [ ] `.github/workflows/release.yml` — On tag: build + push Docker image
+- [x] `.github/workflows/ci.yml` — On push/PR: vet, test, lint, build
 
 #### 7.6 README
-- [ ] `README.md` — Quickstart, prerequisites, config reference, architecture diagram
+- [x] `README.md` — Quickstart, prerequisites, config reference, architecture diagram
 
-**Deliverable:** Push to GitHub → CI runs and passes. `docker pull protean-provider:v1.0.0` works.
+**Deliverable:** Push to GitHub → CI runs and passes. `docker build` completes successfully.
+
+---
+
+## Phase 8 — Native Automation Framework (Week 9)
+
+**Goal:** Direct cross-platform UI gesture automation without heavy Appium dependencies.
+
+### Tasks
+- [x] **YAML DSL and Compiler**: Parser for structured YAML test steps (clicks, inputs, swipes, launches, waits, asserts).
+- [x] **Locator Resolver**: XML parser and coordinate scaling engines translating Resource ID/Text/Accessibility locators into physical coordinates.
+- [x] **Dynamic Wait & Assertion**: Support for implicit click retries, explicit wait states (hidden/visible), and text asserts (equals/contains).
+- [x] **Parallel Scheduler**: Thread-safe execution scheduler for running automation scenarios concurrently across multiple provider nodes.
+- [x] **Storage & Reporting**: PostgreSQL schema and CRUD operations for uploading YAML scripts and retrieving step-level execution reports with screenshots.
+
+---
+
+## Phase 9 — User Authentication & RBAC (Week 10)
+
+**Goal:** Multi-tenant secure workspace scoped by user roles and group access policies.
+
+### Tasks
+- [x] **Database Schema**: Schema migrations for Users, Groups, User-Group mappings, and ApiKeys.
+- [x] **Authentication middleware**: JWT extraction and signature validation (supporting local bcrypt passwords and OIDC JWKS).
+- [x] **RBAC Authorization**: Enforce admin/group-admin/user/viewer roles on device booking, allocation, and scripting APIs.
+- [x] **Development Bypass**: Toggleable `BYPASS_AUTH_IN_DEV` variable to allow easy local environment checks.
+
+---
+
+## Phase 10 — Dual Platform Abstraction & Standalone Compose (Week 11)
+
+**Goal:** Clean separation of Android/iOS drivers and decentralized edge node deployments.
+
+### Tasks
+- [x] **Platform Factory**: Modular interface abstraction for device managers (`internal/platform/`).
+- [x] **Android Driver**: Direct shell tool implementation using ADB socket wrappers.
+- [x] **iOS Driver**: Direct HTTP endpoint wrapper communicating with Apple's WebDriverAgent (WDA) API.
+- [x] **Decoupled Deployment Stack**: Isolated `docker-compose.provider.yml` featuring host networking, auto-IP discovery, and usbmuxd mounts for distributed edge systems.
 
 ---
 
 ## Summary Timeline
 
-| Week | Phase | Key Deliverable |
-|------|-------|----------------|
-| 1 | Foundation | Binary starts, reads config, exits cleanly |
-| 2 | ADB Integration | Device plug/unplug logged |
-| 3 | Coordinator gRPC | Provider registers with Coordinator |
-| 4 | Agent & Supervisor | Full device lifecycle |
-| 5 | Streaming | Live screen in browser |
-| 6 | Observability | Metrics + health check + linting |
-| 7–8 | Deployment | Docker image + CI/CD pipeline |
+| Week | Phase | Key Deliverable | Status |
+|------|-------|----------------|--------|
+| 1 | Foundation | Binary starts, reads config, exits cleanly | Completed |
+| 2 | ADB Integration | Device plug/unplug logged | Completed |
+| 3 | Coordinator gRPC | Provider registers with Coordinator | Completed |
+| 4 | Agent & Supervisor | Full device lifecycle | Completed |
+| 5 | Streaming | Live screen in browser | Completed |
+| 6 | Observability | Metrics + health check + linting | Completed |
+| 7–8 | Deployment | Docker image + CI/CD pipeline | Completed |
+| 9 | Automation | Native DSL & Parallel Scheduler | Completed |
+| 10 | Security | JWT / OIDC & RBAC Group Scopes | Completed |
+| 11 | Distributed | Standalone Compose & Dual iOS Driver | Completed |
+

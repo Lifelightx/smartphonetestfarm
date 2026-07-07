@@ -6,54 +6,57 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                      Protean Platform                               │
+│                      Protean Platform Core                          │
 │                                                                     │
 │  ┌──────────────────────────────────────────────────────────────┐   │
-│  │                   protean-app (Angular UI)                   │   │
-│  │         Browser-based device control & booking UI            │   │
+│  │                protean-frontend (React Vite UI)              │   │
+│  │       Sleek dashboard, user login & live device interaction   │   │
 │  └──────────────────────────┬───────────────────────────────────┘   │
-│                             │  REST + WebSocket                     │
+│                             │  REST HTTP + WebSockets (Port 5173)   │
 │  ┌──────────────────────────▼───────────────────────────────────┐   │
-│  │                  protean-api (Go — future)                   │   │
-│  │        REST gateway, JWT auth, WebSocket proxy               │   │
-│  └──────────────────────────┬───────────────────────────────────┘   │
-│                             │  gRPC (internal)                      │
-│  ┌──────────────────────────▼───────────────────────────────────┐   │
-│  │              protean-coordinator (Go — future)               │   │
-│  │     Device pool, booking engine, heartbeat tracking          │   │
-│  │                PostgreSQL  +  Redis                          │   │
-│  └────────────────────────┬─────────────────────────────────────┘   │
-│                           │  gRPC over mTLS                        │
-└───────────────────────────┼─────────────────────────────────────────┘
-                            │
-         ┌──────────────────▼──────────────────────┐
-         │        protean-provider-go (THIS REPO)   │
-         │                                          │
-         │  ┌──────────┐   ┌──────────┐             │
-         │  │   ADB    │   │Supervisor│             │
-         │  │ Tracker  │──►│+ Registry│             │
-         │  └──────────┘   └────┬─────┘             │
-         │                      │ spawns             │
-         │               ┌──────▼──────┐            │
-         │               │  Agent (×N) │            │
-         │               │  per device │            │
-         │               └──────┬──────┘            │
-         │                      │                   │
-         │           ┌──────────▼──────────┐        │
-         │           │   Stream Manager    │        │
-         │           │  MJPEG + Input Relay│        │
-         │           └─────────────────────┘        │
-         │                                          │
-         │  USB / WiFi-ADB                          │
-         └──────────┬───────────────────────────────┘
-                    │
-      ┌─────────────┼─────────────┐
-      ▼             ▼             ▼
-  [Device 1]   [Device 2]   [Device N]
-  (Android)    (Android)    (Android)
+│  │         protean-coordinator (Go REST/gRPC Server)            │   │
+│  │   JWT/OIDC Auth & RBAC, Booking Engine, WS Manager, Scheduler│   │
+│  └──────┬─────────────────────────────────────────────────┬─────┘   │
+│         │                                                 │         │
+│         │ gRPC / HTTP (mTLS)                              │ SQL     │
+│         │                                                 │         │
+│         │                                        ┌────────▼───────┐ │
+│         │                                        │  PostgreSQL 16 │ │
+│         │                                        │  User/Device/  │ │
+│         │                                        │  Group Store   │ │
+│         │                                        └────────────────┘ │
+└─────────┼───────────────────────────────────────────────────────────┘
+          │
+          ├─────────────────────────────────────────────────┐
+          │ gRPC over host network / mTLS (Port 9000/9091)   │
+          ▼                                                 ▼
+┌──────────────────────────────────┐               ┌──────────────────────────────────┐
+│  protean-provider (Android Node) │               │   protean-provider (iOS Node)    │
+│                                  │               │                                  │
+│  ┌──────────┐      ┌──────────┐  │               │  ┌──────────┐      ┌──────────┐  │
+│  │   ADB    │      │Supervisor│  │               │  │  go-ios  │      │Supervisor│  │
+│  │ Tracker  │─────►│+ Registry│  │               │  │ Tracker  │─────►│+ Registry│  │
+│  └──────────┘      └────┬─────┘  │               │  └──────────┘      └────┬─────┘  │
+│                         │ spawns │               │                         │ spawns │
+│                  ┌──────▼──────┐ │               │                  ┌──────▼──────┐ │
+│                  │  Agent (×N) │ │               │                  │  Agent (×N) │ │
+│                  │  per device │ │               │                  │  per device │ │
+│                  └──────┬──────┘ │               │                  └──────┬──────┘ │
+│                         │        │               │                         │        │
+│              ┌──────────▼────────┐               │              ┌──────────▼────────┐
+│              │   Stream Manager  │               │              │   Stream Manager  │
+│              │MJPEG/H264 & Input │               │              │WDA Stream & Input │
+│              └───────────────────┘               │              └───────────────────┘
+│                                  │               │                                  │
+│  USB / WiFi-ADB                  │               │  USB (usbmuxd)                   │
+└─────────┬────────────────────────┘               └─────────┬────────────────────────┘
+          │                                                  │
+    ┌─────┴─────┐                                      ┌─────┴─────┐
+    ▼           ▼                                      ▼           ▼
+[Device 1]  [Device N]                             [Device 1]  [Device N]
+(Android)   (Android)                              (iOS)       (iOS)
 ```
 
----
 
 ## 2. Internal Component Architecture
 
@@ -166,9 +169,14 @@ os.Exit(0)   [hard timeout: 30s]
 | Connection | Protocol | Auth |
 |------------|----------|------|
 | Provider → Coordinator | gRPC / HTTP2 | mTLS (mutual TLS) |
+| Frontend → Coordinator REST | HTTPS / HTTP | JWT (bearer token) or OIDC |
+| Frontend → Coordinator WS | WebSockets | WS authorization token / JWT |
+| Client → Coordinator (CI/CD) | HTTPS / HTTP | Pre-shared API Key (`X-API-Key`) |
+| Coordinator → PostgreSQL | TCP / Postgres protocol | Password (or SSL client certificates) |
 | Provider metrics endpoint | HTTP | None (internal network only) |
 | Provider health gRPC server | gRPC | Optional: mTLS |
 | ADB → Android device | ADB protocol | RSA key pair (ADB standard) |
+| Provider → iOS device | HTTP (WebDriverAgent) | None (isolated local network) |
 
 ### mTLS Certificate Layout
 ```
@@ -189,25 +197,30 @@ main goroutine
 errgroup goroutines:
   ├── metrics HTTP server
   ├── gRPC health server
-  ├── supervisor (watches ADB events)
+  ├── supervisor (watches ADB / iOS USB events)
   └── coordinator reconnect loop
 
 per-device goroutines (spawned by supervisor):
-  ├── agent.Run()          ← owns device FSM
+  ├── agent.Run()          ← owns device FSM (Android / iOS)
   ├── agent.heartbeat()    ← ticker every 10s
-  └── stream.capture()     ← scrcpy subprocess read loop
+  └── stream.capture()     ← scrcpy or WebDriverAgent stream read loop
 ```
 
-All goroutines share a single `context.Context`. Cancelling root context terminates everything in order.
+All goroutines share a single `context.Context`. Cancelling the root context terminates everything in order.
 
 ---
 
 ## 8. Port Allocation
 
-| Service | Port | Protocol |
-|---------|------|----------|
-| ADB daemon (local) | 5037 | TCP (ADB) |
-| Provider metrics | 9090 | HTTP |
-| Provider gRPC health | 9091 | gRPC |
-| Device screen stream ports | 7400–7700 | TCP (MJPEG) |
-| Coordinator (remote) | 9000 | gRPC |
+| Service | Port | Protocol | Description |
+|---------|------|----------|-------------|
+| ADB daemon (local) | 5037 | TCP | Local Android Debug Bridge Daemon |
+| usbmuxd (local socket) | Unix Socket | IPC | iOS Device Discovery Bridge |
+| Provider metrics | 9090 | HTTP | Prometheus metrics scraping |
+| Provider gRPC health | 9091 | gRPC | Coordinator-to-Provider health check |
+| Device screen stream ports | 7400–7700 | TCP | Individual MJPEG streams (Android / iOS) |
+| Coordinator gRPC | 9000 | gRPC | Bi-directional provider registration/heartbeats |
+| Coordinator REST / WS | 9002 | HTTP / WS | Frontend REST endpoints and WebSocket stream broker |
+| PostgreSQL Database | 5432 | TCP | User, Group, API key, and schema storage |
+| Frontend Web UI | 5173 | HTTP | React Web application dashboard (served via Nginx) |
+

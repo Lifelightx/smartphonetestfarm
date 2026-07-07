@@ -244,3 +244,34 @@ The full error chain for a getprop failure would be:
 ```
 agent exited with error: enrich device ABC123: getprop ro.product.model: exit status 1
 ```
+
+---
+
+## 2.7 Database & Migration Errors
+
+| Error | Cause | Action |
+|-------|-------|--------|
+| PostgreSQL unreachable at startup | DB container starting slowly or wrong URI | Retry connection with backoff up to 30 seconds; if still offline, crash (`os.Exit(1)`) |
+| Unique constraint violation | Saving existing email or device registry key | Return structured error `ErrAlreadyExists` / `409 Conflict` |
+| Connection pool exhausted | Concurrency spikes or unclosed rows/connections | Implement connection limits, enforce standard timeout contexts for all queries |
+
+---
+
+## 2.8 Authentication & Token Errors
+
+| Error | Cause | Action |
+|-------|-------|--------|
+| JWT signature verification failure | Altered token or wrong signing secret key | Return `401 Unauthorized`, log warning with IP |
+| Token expired | Exceeded 24-hour expiration threshold | Return `401 Unauthorized` with header `Token-Expired` to trigger client-side re-login or refresh |
+| OIDC JWKS lookup failure | Network issue reaching IDP server | Cache JWK keys locally, retry lookup asynchronously, reject new tokens in the interim |
+
+---
+
+## 2.9 iOS / usbmuxd / WDA Errors
+
+| Error | Cause | Action |
+|-------|-------|--------|
+| usbmuxd socket unreachable | usbmuxd service down or socket path not mounted | Log warning, retry listening loop every 5 seconds. Mark iOS subsystem as degraded. |
+| WDA session expired / `EOF` | WebDriverAgent process crashed on device | Re-initialize WDA session transparently on next action call (via `ensureSession`). |
+| Screen streaming TCP socket failure | qvh bridge process exited unexpectedly | Terminate current Streamer context, log error, and trigger stream restart. |
+

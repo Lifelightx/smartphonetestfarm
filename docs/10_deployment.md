@@ -2,124 +2,150 @@
 
 ---
 
-## 1. Dockerfile (Multi-Stage)
+## 1. Dockerfile (Dockerfile.provider)
 
 ```dockerfile
-# deploy/Dockerfile
+# Stage 1: Build the provider binary
+FROM golang:1.26-alpine AS builder
 
-# =============================================================================
-# Stage 1: Builder
-# =============================================================================
-FROM golang:1.21-alpine AS builder
-
-# Install build tools
-RUN apk add --no-cache git ca-certificates
-
-WORKDIR /build
-
-# Download dependencies first (layer cache optimization)
-COPY go.mod go.sum ./
-RUN go mod download
-
-# Copy source
-COPY . .
-
-# Build static binary
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-    go build \
-    -ldflags="-s -w -X main.Version=$(git describe --tags --always)" \
-    -o /provider \
-    ./cmd/provider
-
-# =============================================================================
-# Stage 2: Runtime
-# =============================================================================
-FROM alpine:3.19
-
-# adb is needed for ADB communication with devices
-RUN apk add --no-cache \
-    android-tools \
-    ca-certificates \
-    tzdata
-
-# Non-root user
-RUN addgroup -S provider && adduser -S provider -G provider
+# Install build dependencies
+RUN apk add --no-cache git make gcc musl-dev curl
 
 WORKDIR /app
 
-# Copy binary
-COPY --from=builder /provider /app/provider
+# Copy dependency files
+COPY go.mod go.sum ./
+RUN go mod download
 
-# Copy default config (can be overridden by volume mount)
-COPY config/provider.yaml /etc/stf/provider.yaml
+# Copy the rest of the source code
+COPY . .
 
-# Switch to non-root
-USER provider
+# Fetch the scrcpy-server dependency
+RUN make fetch-deps
 
-# Ports: metrics=9090, grpc-health=9091, device-streams=7400-7700
+# Build the provider
+RUN CGO_ENABLED=0 GOOS=linux go build -buildvcs=false -ldflags "-s -w" -o bin/provider ./cmd/provider
+
+# Install go-ios tool
+RUN GOBIN=/app/bin go install github.com/danielpaulus/go-ios@latest
+
+# Stage 2: Create a minimal runner image
+FROM alpine:latest
+
+# Install runtime dependencies (such as adb client)
+RUN apk add --no-cache ca-certificates tzdata curl android-tools-adb
+
+WORKDIR /app
+
+# Copy the compiled binaries and config
+COPY --from=builder /app/bin/provider /app/provider
+COPY --from=builder /app/bin/go-ios /usr/local/bin/ios
+COPY --from=builder /app/config/provider.yaml /app/config/provider.yaml
+
+# Expose metrics and gRPC server ports
 EXPOSE 9090 9091
 
-ENTRYPOINT ["/app/provider"]
-CMD ["--config", "/etc/stf/provider.yaml"]
+# Run the provider binary
+ENTRYPOINT ["/app/provider", "--config", "/app/config/provider.yaml", "--log-level", "debug"]
 ```
 
-### Build & Push
+### Build the Provider
 
 ```bash
-# Build
-docker build -t protean-provider:latest -f deploy/Dockerfile .
-
-# Tag for registry
-docker tag protean-provider:latest registry.example.com/protean/provider:v1.0.0
-
-# Push
-docker push registry.example.com/protean/provider:v1.0.0
+docker build -t protean-provider:latest -f Dockerfile.provider .
 ```
 
 ---
 
-## 2. Docker Compose (Local Dev / Integration)
+## 2. Docker Compose Configurations
+
+The Protean system uses a decoupled multi-compose deployment model to support distributed deployments.
+
+### 2.1 Central Coordinator Stack (`docker-compose.yml`)
+
+Deploys the database (PostgreSQL), the coordinator server, and the static web frontend.
 
 ```yaml
-# deploy/docker-compose.yml
+version: "3.9"
 
+services:
+  # 1. PostgreSQL Database Service
+  db:
+    image: postgres:16
+    container_name: protean-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: "123456"
+      POSTGRES_DB: protean
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d protean"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 2. Go Coordinator Server (REST HTTP + gRPC)
+  coordinator:
+    build:
+      context: .
+      dockerfile: Dockerfile.coordinator
+    image: go-coordinator:v1
+    container_name: protean-coordinator
+    environment:
+      - COORDINATOR_POSTGRES_URI=postgres://postgres:123456@db:5432/protean?sslmode=disable
+      - COORDINATOR_GRPC_PORT=9000
+      - COORDINATOR_JWT_SECRET=protean-default-secret-key-change-me-123456
+      - BYPASS_AUTH_IN_DEV=false
+    ports:
+      - "9000:9000" # gRPC
+      - "9002:9002" # HTTP API / WebSockets
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # 3. Nginx Static Frontend Service
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: protean-frontend
+    image: go-frontend:v1
+    ports:
+      - "5173:80"
+    depends_on:
+      - coordinator
+
+volumes:
+  postgres_data:
+```
+
+### 2.2 Standalone Remote Provider Node (`docker-compose.provider.yml`)
+
+Designed to be run on edge nodes containing physical device racks. Uses host networking for low-latency TCP communication and shares local USB interfaces.
+
+```yaml
 version: "3.9"
 
 services:
   provider:
     build:
-      context: ..
-      dockerfile: deploy/Dockerfile
-    container_name: protean-provider
-    privileged: true          # needed for USB device access
-    volumes:
-      - /dev/bus/usb:/dev/bus/usb   # USB device passthrough
-      - ./certs:/etc/stf/certs:ro   # mTLS certificates
-      - ../config/provider.yaml:/etc/stf/provider.yaml:ro
+      context: .
+      dockerfile: Dockerfile.provider
+    container_name: protean-provider-node
+    image: go-provider:v1
     environment:
-      - PROVIDER_COORDINATOR_ADDRESS=coordinator:9000
-      - PROVIDER_LOGGING_LEVEL=debug
-    ports:
-      - "9090:9090"    # metrics
-      - "9091:9091"    # gRPC health
-    restart: unless-stopped
-    depends_on:
-      - coordinator
-    networks:
-      - protean
-
-  # Mock coordinator for local testing
-  coordinator:
-    image: protean-mock-coordinator:latest
-    container_name: mock-coordinator
-    ports:
-      - "9000:9000"
-    networks:
-      - protean
-
-networks:
-  protean:
-    driver: bridge
+      - PROVIDER_COORDINATOR_ADDRESS=coordinator.your-domain.com:9000 # Set to the coordinator's endpoint
+      - PROVIDER_ADB_HOST=127.0.0.1                  # Connects to the host's local ADB daemon
+      - PROVIDER_ADB_PORT=5037
+    network_mode: "host"                             # Shares host network for direct port/ADB communication
+    volumes:
+      - /var/run/usbmuxd:/var/run/usbmuxd            # Share usbmuxd socket for iOS discovery
+    restart: on-failure
 ```
 
 ---
@@ -321,66 +347,85 @@ jobs:
 
 ---
 
-## 6. Makefile
+## 6. Makefile Reference
 
 ```makefile
 # Makefile
 
-BINARY     := bin/provider
-CMD        := ./cmd/provider
-VERSION    := $(shell git describe --tags --always --dirty)
-BUILD_FLAGS := -ldflags="-s -w -X main.Version=$(VERSION)"
+BINARY        := bin/provider
+COORD_BIN     := bin/coordinator
+CMD           := ./cmd/provider
+COORD_CMD     := ./cmd/coordinator
+CONFIG        := config/provider.yaml
+VERSION       := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+LDFLAGS       := -ldflags "-X main.Version=$(VERSION) -s -w"
 
-.PHONY: all build run test lint proto certs docker-build docker-run clean install-tools
+# scrcpy-server download metadata
+SCRCPY_VERSION  := 4.0
+SCRCPY_SERVER   := internal/stream/scrcpy-server.jar
+SCRCPY_URL      := https://github.com/Genymobile/scrcpy/releases/download/v$(SCRCPY_VERSION)/scrcpy-server-v$(SCRCPY_VERSION)
 
-all: build
+.PHONY: all build build-coordinator build-all run run-coordinator run-frontend test lint clean proto fetch-deps help
 
-## Build the provider binary
-build:
+all: build-all
+
+## fetch-deps: Download the scrcpy-server binary required for go:embed (idempotent)
+fetch-deps:
+	@if [ ! -f $(SCRCPY_SERVER) ]; then \
+		echo "→ downloading scrcpy-server v$(SCRCPY_VERSION)..."; \
+		curl -fsSL $(SCRCPY_URL) -o $(SCRCPY_SERVER); \
+		echo "✔  saved $(SCRCPY_SERVER) ($$(du -sh $(SCRCPY_SERVER) | cut -f1))"; \
+	fi
+
+## build: Compile the provider binary into ./bin/
+build: fetch-deps
 	@mkdir -p bin
-	CGO_ENABLED=0 go build $(BUILD_FLAGS) -o $(BINARY) $(CMD)
+	go build -buildvcs=false $(LDFLAGS) -o $(BINARY) $(CMD)
 
-## Run the provider locally
+## build-coordinator: Compile the coordinator binary into ./bin/
+build-coordinator:
+	@mkdir -p bin
+	go build -buildvcs=false $(LDFLAGS) -o $(COORD_BIN) $(COORD_CMD)
+
+## build-all: Compile both provider and coordinator binaries
+build-all: build build-coordinator
+
+## run: Build and run the provider with default config
 run: build
-	$(BINARY) --config config/provider.yaml
+	./$(BINARY) --config $(CONFIG) --log-level debug
 
-## Run all tests with race detector
+## run-coordinator: Build and run the coordinator with default settings
+run-coordinator: build-coordinator
+	./$(COORD_BIN)
+
+## run-frontend: Run the Vite React developer server for the user interface
+run-frontend:
+	cd frontend && npm run dev
+
+## test: Run all tests with race detector
 test:
-	go test -race ./...
+	go test -race -cover ./...
 
-## Run tests with coverage report
-cover:
-	go test -race -coverprofile=coverage.out ./...
-	go tool cover -html=coverage.out -o coverage.html
-	@echo "Coverage report: coverage.html"
+## test-v: Run all tests with verbose output
+test-v:
+	go test -race -v -coverprofile=coverage.out ./...
+	go tool cover -func=coverage.out | tail -1
 
-## Run linter
+## lint: Run golangci-lint
 lint:
 	golangci-lint run ./...
 
-## Generate protobuf code
-proto:
-	cd pkg/protocol && buf generate
+## tidy: Tidy and verify go.mod / go.sum
+tidy:
+	go mod tidy
+	go mod verify
 
-## Generate development TLS certificates
-certs:
-	./scripts/gen-certs.sh
-
-## Build Docker image
-docker-build:
-	docker build -t protean-provider:$(VERSION) -f deploy/Dockerfile .
-	docker tag protean-provider:$(VERSION) protean-provider:latest
-
-## Run with Docker Compose
-docker-run:
-	docker-compose -f deploy/docker-compose.yml up
-
-## Install dev tools
-install-tools:
-	go install github.com/bufbuild/buf/cmd/buf@latest
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-
-## Clean build artifacts
+## clean: Remove build artefacts
 clean:
-	rm -rf bin/ coverage.out coverage.html
+	rm -rf bin/ coverage.out
+
+## proto: Generate Go code from .proto files (requires buf)
+proto:
+	buf generate
 ```
+

@@ -143,7 +143,7 @@ var (
 
 ## 5. Core Interfaces
 
-All interfaces are defined here. Each is implemented in a concrete package under `internal/`.
+All core contracts are defined in `internal/domain/interfaces.go`. Each is implemented in a concrete package under `internal/`.
 
 ```go
 // interfaces.go
@@ -151,31 +151,125 @@ package domain
 
 import "context"
 
-// DeviceTracker watches ADB for device events.
-// Implemented by: internal/adb.Tracker
+// DeviceTracker watches the ADB daemon or usbmuxd for device connect/disconnect events.
 type DeviceTracker interface {
-    Watch(ctx context.Context, ch chan<- DeviceEvent) error
+	Watch(ctx context.Context, ch chan<- DeviceEvent) error
+}
+
+// DeviceRegistry stores the live set of connected devices.
+type DeviceRegistry interface {
+	Add(device *Device) error
+	Remove(serial string) error
+	Get(serial string) (*Device, error)
+	List() []*Device
+	Count() int
+}
+
+// PropertyFetcher retrieves hardware/software information from a device.
+type PropertyFetcher interface {
+	Fetch(ctx context.Context, serial string) (*Device, error)
 }
 
 // StreamManager controls per-device screen capture and input relay.
-// Implemented by: internal/stream.Manager
 type StreamManager interface {
-    StartCapture(ctx context.Context, serial string) error
-    StopCapture(ctx context.Context, serial string) error
-    IsCapturing(serial string) bool
+	StartCapture(ctx context.Context, serial string, port int) error
+	StopCapture(ctx context.Context, serial string) error
+	IsCapturing(serial string) bool
 }
 
-// CoordinatorClient communicates with the central Protean Coordinator.
-// Implemented by: internal/coordinator.Client
+// CoordinatorClient communicates with the central STF Coordinator over gRPC.
 type CoordinatorClient interface {
-    Connect(ctx context.Context) error
-    RegisterProvider(ctx context.Context, p Provider) error
-    RegisterDevice(ctx context.Context, d Device) error
-    SendHeartbeat(ctx context.Context, serial string, state DeviceState) error
-    ReleaseDevice(ctx context.Context, serial string) error
-    Disconnect() error
+	Connect(ctx context.Context) error
+	RegisterProvider(ctx context.Context, p *Provider) error
+	RegisterDevice(ctx context.Context, d *Device) error
+	UpdateDeviceState(ctx context.Context, d *Device) error
+	SendHeartbeat(ctx context.Context, serial string) error
+	ReleaseDevice(ctx context.Context, serial string) error
+	Disconnect(ctx context.Context) error
 }
 ```
+
+---
+
+## 5.1 Authentication Domain Models
+
+Defined in `internal/domain/auth.go`:
+
+```go
+// auth.go
+package domain
+
+import "time"
+
+type UserRole string
+
+const (
+	RoleAdmin      UserRole = "admin"
+	RoleGroupAdmin UserRole = "group_admin"
+	RoleUser       UserRole = "user"
+	RoleViewer     UserRole = "viewer"
+)
+
+type User struct {
+	ID           string    `json:"id"`
+	Email        string    `json:"email"`
+	PasswordHash string    `json:"-"`
+	Role         UserRole  `json:"role"`
+	AuthProvider string    `json:"auth_provider"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+type Group struct {
+	ID          string     `json:"id"`
+	Name        string     `json:"name"`
+	Description string     `json:"description"`
+	CreatedAt   time.Time  `json:"created_at"`
+	ExpiresAt   *time.Time `json:"expires_at,omitempty"`
+}
+
+type ApiKey struct {
+	ID        string     `json:"id"`
+	UserID    string     `json:"user_id"`
+	Name      string     `json:"name"`
+	TokenHash string     `json:"-"`
+	CreatedAt time.Time  `json:"created_at"`
+	ExpiresAt *time.Time `json:"expires_at,omitempty"`
+}
+```
+
+---
+
+## 5.2 Automation Driver Interface
+
+Defined in `internal/domain/automation.go` for executing direct, cross-platform gestures without external dependencies (like Appium):
+
+```go
+// automation.go
+package domain
+
+import "context"
+
+type AppInfo struct {
+	PackageName string `json:"packageName"`
+	Activity    string `json:"activity"`
+}
+
+type Driver interface {
+	Launch(ctx context.Context, appID string) error
+	Terminate(ctx context.Context, appID string) error
+	Tap(ctx context.Context, x, y float64) error
+	Swipe(ctx context.Context, startX, startY, endX, endY float64, durationMs int) error
+	Input(ctx context.Context, text string) error
+	Screenshot(ctx context.Context) ([]byte, error)
+	DumpUI(ctx context.Context) (string, error)
+	CurrentApp(ctx context.Context) (*AppInfo, error)
+	Install(ctx context.Context, filepath string) error
+	Uninstall(ctx context.Context, appID string) error
+	ScreenSize(ctx context.Context) (width, height int32, err error)
+}
+```
+
 
 ---
 

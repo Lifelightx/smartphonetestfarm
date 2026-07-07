@@ -223,3 +223,28 @@ Flags:
   --version            Print version and exit
   --help               Show this help
 ```
+
+---
+
+## 6. Coordinator Configuration
+
+Unlike the provider edge daemons which use YAML configuration, the central **Protean Coordinator** server is configured entirely via environment variables.
+
+| Environment Variable | Type | Default Value | Description |
+|----------------------|------|---------------|-------------|
+| `COORDINATOR_GRPC_PORT` | Int | `9000` | Inbound port for provider registration and heartbeat connections. |
+| `COORDINATOR_POSTGRES_URI` | String | `postgres://postgres:123456@localhost:5455/protean?sslmode=disable` | Connection URI for the PostgreSQL database holding user roles, groups, and logs. |
+| `COORDINATOR_JWT_SECRET` | String | `protean-default-secret-key-change-me-123456` | Secret key used to sign and verify JWT authentication tokens. |
+| `COORDINATOR_JWT_ISSUER` | String | `protean-coordinator` | Configured issuer claim for JWT tokens. |
+| `COORDINATOR_OIDC_JWKS_URL` | String | `""` | Optional URL to fetch JSON Web Key Sets (JWKS) if leveraging an external OpenID Connect identity provider (OIDC). |
+| `BYPASS_AUTH_IN_DEV` | Bool | `true` | When set to `true`, disables token checks on coordinator HTTP routes to ease local debugging/testing. Defaults to `true` (bypass active). |
+
+---
+
+## 7. Auto-IP Discovery & Standalone Network Configuration
+
+To deploy the provider daemon on remote nodes outside of the central coordinator network:
+1. **Leave IP blank**: Set `provider.ip: ""` (or omit it).
+2. **Auto-Discovery**: At startup, the provider auto-detects its own outbound IPv4 routing address by opening a UDP connection to the coordinator address, identifying its primary interface address.
+3. **Host Networking**: If running the provider inside Docker on a remote host, configure `network_mode: host` in `docker-compose.provider.yml` to allow the container direct socket access to the host's ports and discovery protocols.
+

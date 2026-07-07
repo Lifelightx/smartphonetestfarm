@@ -22,6 +22,7 @@ This folder contains the full technical documentation for building the **Protean
 | [12_dependencies.md](./12_dependencies.md) | All Go packages with justification |
 | [13_automation_framework.md](./13_automation_framework.md) | Native Automation Framework (No Appium) & Phase 1 |
 | [14_refactoring_architecture.md](./14_refactoring_architecture.md) | Package Modularization & Architecture Refactoring |
+| [15_auth_and_rbac_integration.md](./15_auth_and_rbac_integration.md) | Authentication & Authorization (RBAC & Groups) Integration Plan |
 
 ---
 
@@ -30,7 +31,7 @@ This folder contains the full technical documentation for building the **Protean
 ```bash
 # 1. Clone
 git clone <repo>
-cd protean-provider-go
+cd protean-provider
 
 # 2. Install tools
 make install-tools
@@ -46,3 +47,4 @@ make run
 ```
 
 See [07_implementation_phases.md](./07_implementation_phases.md) for what to build next.
+
