@@ -447,7 +447,8 @@ func (m *Manager) handleWS(w http.ResponseWriter, r *http.Request, serial string
 								lw, lh = 375.0, 812.0
 							}
 						}
-						if serr := wdaClient.Swipe(ctx, lw/2.0, lh - 5.0, lw/2.0, lh*0.5, 1.0); serr != nil {
+						// On modern iOS, entering the App Switcher requires swiping up and holding/pausing before releasing
+						if serr := wdaClient.SwipeAndHold(ctx, lw/2.0, lh - 5.0, lw/2.0, lh*0.5, 0.4, 1000); serr != nil {
 							slog.Warn("stream: ios app-switcher swipe failed", "serial", serial, "err", serr)
 						}
 					case 67: // Backspace
