@@ -1,11 +1,13 @@
 package app
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"log/slog"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -134,6 +136,9 @@ func (a *App) Run(ctx context.Context) error {
 	if err := a.inboundServer.Start(); err != nil {
 		return fmt.Errorf("app: start inbound grpc server: %w", err)
 	}
+
+	// ── Start local admin Unix socket ─────────────────────────────────────────
+	go a.runAdminSocket(ctx)
 
 	// ── Connect to coordinator ───────────────────────────────────────────────
 	if err := a.coordinator.Connect(ctx); err != nil {
@@ -356,5 +361,85 @@ func detectProviderIP(cfgIP string) string {
 
 	return "127.0.0.1"
 }
+
+// runAdminSocket runs the local administrative Unix socket server.
+func (a *App) runAdminSocket(ctx context.Context) {
+	socketPath := filepath.Join("scratch", "provider.sock")
+	_ = os.Remove(socketPath)
+
+	_ = os.MkdirAll(filepath.Dir(socketPath), 0755)
+
+	lc := net.ListenConfig{}
+	listener, err := lc.Listen(ctx, "unix", socketPath)
+	if err != nil {
+		slog.Error("admin socket: failed to listen", "path", socketPath, "err", err)
+		return
+	}
+	defer listener.Close()
+	defer os.Remove(socketPath)
+
+	slog.Info("admin socket: listening for local CLI commands", "path", socketPath)
+
+	go func() {
+		<-ctx.Done()
+		listener.Close()
+	}()
+
+	for {
+		conn, err := listener.Accept()
+		if err != nil {
+			if ctx.Err() != nil {
+				return
+			}
+			slog.Error("admin socket: accept failed", "err", err)
+			continue
+		}
+		go a.handleAdminConn(conn)
+	}
+}
+
+// handleAdminConn handles commands received on the admin socket.
+func (a *App) handleAdminConn(conn net.Conn) {
+	defer conn.Close()
+	scanner := bufio.NewScanner(conn)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		parts := strings.Fields(line)
+		if len(parts) < 2 {
+			_, _ = fmt.Fprintln(conn, "ERROR: invalid command. Use: reset <serial>")
+			continue
+		}
+		cmd := parts[0]
+		serial := parts[1]
+
+		if cmd == "reset" {
+			slog.Info("admin socket: CLI requested device reset", "serial", serial)
+
+			dev, err := a.registry.Get(serial)
+			if err != nil {
+				_, _ = fmt.Fprintf(conn, "ERROR: device %s not found in registry\n", serial)
+				continue
+			}
+
+			// Perform clean reset of supervisor
+			a.onDeviceDisconnected(domain.DeviceEvent{Serial: serial})
+			time.Sleep(500 * time.Millisecond)
+			a.onDeviceConnected(domain.DeviceEvent{
+				Type:   domain.EventConnected,
+				Serial: serial,
+				Device: dev,
+			})
+
+			_, _ = fmt.Fprintf(conn, "SUCCESS: device %s supervisor restarted\n", serial)
+			return
+		} else {
+			_, _ = fmt.Fprintf(conn, "ERROR: unknown command %q. Supported: reset <serial>\n", cmd)
+		}
+	}
+}
+
 
 
