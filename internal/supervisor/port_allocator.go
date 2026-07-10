@@ -48,8 +48,8 @@ func (pa *PortAllocator) Allocate(ctx context.Context, serial string) (int, erro
 		return port, nil
 	}
 
-	// Find first free port in range.
-	for port := pa.minPort; port <= pa.maxPort; port++ {
+	// Find first free port in range, stepping by 10 to reserve a block of 10 ports per device.
+	for port := pa.minPort; port <= pa.maxPort; port += 10 {
 		if _, taken := pa.used[port]; !taken {
 			pa.used[port] = serial
 			pa.bySerial[serial] = port

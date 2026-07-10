@@ -36,3 +36,7 @@ internal/stream/scrcpy-server.jar
 provider
 provider.log
 selfIdentity.plist
+
+# iOS Developer Disk Images cache
+devimages/
+
