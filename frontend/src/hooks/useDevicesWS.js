@@ -9,6 +9,11 @@ export function useDevicesWS(token) {
   const wsRef = useRef(null);
 
   useEffect(() => {
+    if (!token) {
+      setDevices([]);
+      setLoading(true);
+      return;
+    }
     let isMounted = true;
     let reconnectTimer;
 

@@ -12,9 +12,9 @@ import (
 func (s *AuthService) AuthMiddleware(bypassInDev bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Exclude routes that don't need auth (e.g. login endpoint, health checks)
+			// Exclude routes that don't need auth (e.g. login endpoint, health checks, Swagger UI)
 			path := r.URL.Path
-			if path == "/api/v1/auth/login" || path == "/healthz" {
+			if path == "/api/v1/auth/login" || path == "/healthz" || path == "/docs" || path == "/swagger.yaml" {
 				next.ServeHTTP(w, r)
 				return
 			}

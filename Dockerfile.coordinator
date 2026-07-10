@@ -25,6 +25,7 @@ WORKDIR /app
 
 # Copy the compiled binary from the builder stage
 COPY --from=builder /app/bin/coordinator /app/coordinator
+COPY --from=builder /app/docs /app/docs
 
 # Expose the default gRPC and HTTP ports
 EXPOSE 9000 9002

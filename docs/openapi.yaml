@@ -1,0 +1,1350 @@
+openapi: 3.0.3
+info:
+  title: Protean API
+  description: |
+    REST and WebSocket API for the Protean Device Farm.
+    
+    ### Authentication
+    The API supports two authentication mechanisms:
+    1. **JWT Bearer Token**: Sent in the `Authorization` header as `Bearer <token>`.
+    2. **API Key**: Sent in the `X-API-Key` header for programmatic or machine-to-machine integrations.
+    
+    In local development, authentication can be bypassed if the environment variable `BYPASS_AUTH_IN_DEV` is set to `true`.
+  version: 1.0.0
+servers:
+  - url: http://localhost:9002
+    description: Local Coordinator Service (HTTP & WebSockets)
+paths:
+
+  # --- AUTHENTICATION ---
+  /api/v1/auth/login:
+    post:
+      summary: User Login
+      description: Authenticates corporate credentials and returns a JWT token.
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: admin@domain.com
+                password:
+                  type: string
+                  format: password
+                  example: Welcome@2026
+      responses:
+        '200':
+          description: Successful authentication
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    description: Signed JWT access token
+                    example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        '400':
+          description: Invalid request body
+        '401':
+          description: Invalid email or password
+
+  /api/v1/auth/register:
+    post:
+      summary: Register New User
+      description: Registers a new user account. Enforces that only administrators can register users if there is already at least one user in the database.
+      tags:
+        - Authentication
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@domain.com
+                password:
+                  type: string
+                  format: password
+                  example: SecurePassword123
+                role:
+                  type: string
+                  enum: [admin, group_admin, user, viewer]
+                  default: user
+                  example: user
+                groups:
+                  type: array
+                  items:
+                    type: string
+                  default: ["Public"]
+                  example: ["Public"]
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  user:
+                    $ref: '#/components/schemas/User'
+        '400':
+          description: Invalid request body
+        '403':
+          description: Forbidden (Only administrators can create users / admin roles)
+        '500':
+          description: Internal database or registration error
+
+  /api/v1/auth/keys:
+    post:
+      summary: Create API Key
+      description: Generates a new programmatic API key for the authenticated user.
+      tags:
+        - Authentication
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  description: Human-readable name or label for this API key
+                  example: CI/CD Runner Key
+                expires_in_days:
+                  type: integer
+                  description: Optional expiry duration in days. If omitted, key does not expire.
+                  example: 30
+      responses:
+        '200':
+          description: "API key created successfully. **Note**: The actual key token is returned once and cannot be retrieved again."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name:
+                    type: string
+                    example: CI/CD Runner Key
+                  key:
+                    type: string
+                    description: Plaintext API key token to be used in X-API-Key header
+                    example: prt_key_abc123...
+                  message:
+                    type: string
+                    example: Write this key down. It will not be shown again.
+        '400':
+          description: Invalid request body or missing name
+        '401':
+          description: Unauthorized
+        '500':
+          description: Failed to generate API key
+    get:
+      summary: List API Keys
+      description: Retrieves all active API key metadata for the authenticated user.
+      tags:
+        - Authentication
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of API keys
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ApiKey'
+        '401':
+          description: Unauthorized
+        '500':
+          description: Failed to retrieve API keys
+    delete:
+      summary: Revoke API Key
+      description: Revokes/deletes a specific API key belonging to the user (or any key if the requester is an admin).
+      tags:
+        - Authentication
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: query
+          required: true
+          description: The UUID of the API key to delete
+          schema:
+            type: string
+            format: uuid
+            example: 22222222-2222-2222-2222-222222222222
+      responses:
+        '200':
+          description: API key revoked successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+        '400':
+          description: Missing ID parameter
+        '403':
+          description: Forbidden (You do not own this API key)
+        '500':
+          description: Failed to delete API key
+
+  # --- DEVICES ---
+  /api/v1/devices:
+    get:
+      summary: List Connected Devices
+      description: Returns a list of mobile devices connected to the device farm. If authenticated, the list is scoped according to the user's group permissions (administrators see all devices).
+      tags:
+        - Devices
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: A list of devices
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Device'
+        '500':
+          description: Failed to query database
+
+  /api/v1/devices/ws:
+    get:
+      summary: Device Stream WebSocket
+      description: Establishes a persistent WebSocket connection to receive real-time device updates (e.g., state updates, claims, releases).
+      tags:
+        - Devices
+      parameters:
+        - name: token
+          in: query
+          required: false
+          description: Optional auth token if not provided in the standard connection headers
+          schema:
+            type: string
+      responses:
+        '101':
+          description: Switching Protocols to WebSocket.
+          headers:
+            Upgrade:
+              schema:
+                type: string
+                example: websocket
+            Connection:
+              schema:
+                type: string
+                example: Upgrade
+
+  /api/v1/devices/{serial}/claim:
+    post:
+      summary: Claim Device
+      description: Claims an idle device for exclusive remote interaction or automation session.
+      tags:
+        - Devices
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: serial
+          in: path
+          required: true
+          description: Device serial number
+          schema:
+            type: string
+            example: RCLBYQWFES4ZLR4
+        - name: user
+          in: query
+          required: false
+          description: Username claiming the device. Defaults to admin@apmosys.com.
+          schema:
+            type: string
+            example: dev-user
+      responses:
+        '200':
+          description: Device claimed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  session_id:
+                    type: string
+                    format: uuid
+                    example: 33333333-3333-3333-3333-333333333333
+                  port:
+                    type: integer
+                    description: Local port serving the low-latency interactive screen stream (minicap/mjpeg/WDA)
+                    example: 9100
+                  message:
+                    type: string
+                    example: Device claimed successfully
+        '400':
+          description: Invalid path or missing details
+        '409':
+          description: Conflict (Device is already claimed)
+        '502':
+          description: Bad Gateway (Failed to connect to provider hosting the device)
+
+  /api/v1/devices/{serial}/release:
+    post:
+      summary: Release Device
+      description: Releases a claimed device, closing the interactive session and returning it to the idle pool.
+      tags:
+        - Devices
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: serial
+          in: path
+          required: true
+          description: Device serial number
+          schema:
+            type: string
+            example: RCLBYQWFES4ZLR4
+      responses:
+        '200':
+          description: Device released successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Device released successfully
+        '500':
+          description: Database update failed
+
+  /api/v1/devices/{serial}/control:
+    post:
+      summary: Control Device Input
+      description: Sends interactive control inputs (key press, typing, orientation, shell commands) to a claimed device.
+      tags:
+        - Devices
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: serial
+          in: path
+          required: true
+          description: Device serial number
+          schema:
+            type: string
+            example: RCLBYQWFES4ZLR4
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - type
+              properties:
+                type:
+                  type: string
+                  enum: [key, text, rotate, shell]
+                  example: key
+                keycode:
+                  type: integer
+                  description: Android/iOS keycode. Required if type is 'key' or 'rotate'.
+                  example: 3
+                text:
+                  type: string
+                  description: Text characters to type. Required if type is 'text'.
+                  example: Hello World
+                command:
+                  type: string
+                  description: Shell command string. Required if type is 'shell'. Only works for authorized administrative scripts.
+                  example: pm list packages
+      responses:
+        '200':
+          description: Command dispatched successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Success
+        '400':
+          description: Invalid control payload or type
+        '502':
+          description: Bad Gateway (Provider execution failed)
+
+  # --- AUTOMATION ---
+  /api/v1/automation/scripts:
+    get:
+      summary: List Automation Scripts
+      description: Returns all saved YAML automation scripts.
+      tags:
+        - Automation
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: List of automation scripts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ScriptDB'
+        '500':
+          description: Database query failed
+    post:
+      summary: Save/Update Automation Script
+      description: Validates and saves a YAML-defined automation script. If ID is provided, it updates the existing script; otherwise, a new UUID is generated.
+      tags:
+        - Automation
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - content
+              properties:
+                id:
+                  type: string
+                  format: uuid
+                  description: Optional ID. If supplied, updates the existing script.
+                  example: 44444444-4444-4444-4444-444444444444
+                name:
+                  type: string
+                  description: Name/Label of the script
+                  example: Open Youtube and Play Video
+                content:
+                  type: string
+                  description: YAML DSL Script content matching the automation framework schema.
+                  example: |
+                    variables:
+                      step_delay_ms: "500"
+                    steps:
+                      - launch: { package: "com.google.android.youtube" }
+                      - wait: { condition: "visible", xpath: "//node[@content-desc='Search']", timeoutMs: 5000 }
+                      - click: { xpath: "//node[@content-desc='Search']" }
+                      - input: { text: "Nature 4k video" }
+      responses:
+        '200':
+          description: Script saved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  id:
+                    type: string
+                    format: uuid
+                    example: 44444444-4444-4444-4444-444444444444
+        '400':
+          description: Invalid request body or malformed YAML DSL content
+        '500':
+          description: Database save failed
+
+  /api/v1/automation/scripts/{id}:
+    get:
+      summary: Get Script by ID
+      description: Returns the detailed information and YAML content of a saved script.
+      tags:
+        - Automation
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Script UUID
+          schema:
+            type: string
+            format: uuid
+            example: 44444444-4444-4444-4444-444444444444
+      responses:
+        '200':
+          description: Detailed script payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScriptDB'
+        '400':
+          description: Invalid script ID format
+        '404':
+          description: Script not found
+        '500':
+          description: Database error
+    delete:
+      summary: Delete Script
+      description: Deletes a saved automation script from the system.
+      tags:
+        - Automation
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Script UUID
+          schema:
+            type: string
+            format: uuid
+            example: 44444444-4444-4444-4444-444444444444
+      responses:
+        '200':
+          description: Script deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+        '500':
+          description: Database deletion failed
+
+  /api/v1/automation/run:
+    post:
+      summary: Execute Script Parallel
+      description: Triggers the execution of a saved script in parallel across one or more target devices.
+      tags:
+        - Automation
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - script_id
+                - device_serials
+              properties:
+                script_id:
+                  type: string
+                  format: uuid
+                  example: 44444444-4444-4444-4444-444444444444
+                device_serials:
+                  type: array
+                  items:
+                    type: string
+                  example: ["RCLBYQWFES4ZLR4", "00008020-001A4D3E1402002E"]
+      responses:
+        '200':
+          description: Execution completed, returns the run outcome summary for each device
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        serial:
+                          type: string
+                          example: RCLBYQWFES4ZLR4
+                        report_id:
+                          type: string
+                          format: uuid
+                          example: 55555555-5555-5555-5555-555555555555
+                        success:
+                          type: boolean
+                          example: true
+                        duration_ms:
+                          type: integer
+                          example: 12450
+                        error:
+                          type: string
+                          description: Error message if step failed
+                          example: "click failed: element not found"
+        '400':
+          description: Invalid body, missing fields, or empty target device array
+        '404':
+          description: Script not found
+        '500':
+          description: Execution runner or database error
+
+  /api/v1/automation/reports:
+    get:
+      summary: List Automation Execution Reports
+      description: Returns metadata of all script run historical reports.
+      tags:
+        - Automation
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: List of execution reports
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ReportDB'
+        '500':
+          description: Database query failed
+
+  /api/v1/automation/reports/{id}:
+    get:
+      summary: Get Execution Report Details
+      description: Returns the full execution log, duration, step successes/failures, and Base64 screenshots (for failure steps) of a specific run.
+      tags:
+        - Automation
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Report UUID
+          schema:
+            type: string
+            format: uuid
+            example: 55555555-5555-5555-5555-555555555555
+      responses:
+        '200':
+          description: Detailed execution report
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportDetail'
+        '400':
+          description: Invalid report ID format
+        '404':
+          description: Report not found
+        '500':
+          description: Database query failed
+
+  # --- ADMIN MANAGEMENT ---
+  /api/v1/admin/users:
+    get:
+      summary: List Users (Admin Only)
+      description: Lists all registered users and their roles. Requires administrator privileges.
+      tags:
+        - Admin Management
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+        '403':
+          description: Forbidden (Administrator privileges required)
+        '500':
+          description: Database query failed
+    delete:
+      summary: Delete User (Admin Only)
+      description: Permanently deletes a user by ID. Requires administrator privileges.
+      tags:
+        - Admin Management
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: query
+          required: true
+          description: The UUID of the user to delete
+          schema:
+            type: string
+            format: uuid
+            example: 00000000-0000-0000-0000-000000000000
+      responses:
+        '200':
+          description: User deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+        '400':
+          description: Missing ID parameter
+        '403':
+          description: Forbidden (Administrator privileges required)
+        '500':
+          description: Database deletion failed
+
+  /api/v1/admin/groups:
+    get:
+      summary: List Groups (Admin Only)
+      description: Lists all logical tenant groups. Requires administrator privileges.
+      tags:
+        - Admin Management
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: List of tenant groups
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Group'
+        '403':
+          description: Forbidden
+        '500':
+          description: Database query failed
+    post:
+      summary: Create Tenant Group (Admin Only)
+      description: Creates a new tenant/device group. Requires administrator privileges.
+      tags:
+        - Admin Management
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  description: Group name (must be unique)
+                  example: Quality Assurance
+                description:
+                  type: string
+                  description: Short summary of group scope
+                  example: Group for manual and automated QA test runs
+                expires_at:
+                  type: string
+                  format: date-time
+                  description: Optional ISO-8601 expiry timestamp for temporal groups
+                  example: "2026-12-31T23:59:59Z"
+      responses:
+        '201':
+          description: Group created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group'
+        '400':
+          description: Invalid request payload or missing name
+        '403':
+          description: Forbidden
+        '500':
+          description: Database insertion failed
+
+  /api/v1/admin/groups/{group_id}:
+    delete:
+      summary: Delete Tenant Group (Admin Only)
+      description: Deletes a logical group by UUID. Requires administrator privileges.
+      tags:
+        - Admin Management
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: group_id
+          in: path
+          required: true
+          description: Group UUID
+          schema:
+            type: string
+            format: uuid
+            example: 11111111-1111-1111-1111-111111111111
+      responses:
+        '200':
+          description: Group deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+        '403':
+          description: Forbidden
+        '500':
+          description: Database deletion failed
+
+  /api/v1/admin/groups/{group_id}/users:
+    get:
+      summary: List Group Users (Admin Only)
+      description: Lists all users belonging to the specified group. Requires administrator privileges.
+      tags:
+        - Admin Management
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: group_id
+          in: path
+          required: true
+          description: Group UUID
+          schema:
+            type: string
+            format: uuid
+            example: 11111111-1111-1111-1111-111111111111
+      responses:
+        '200':
+          description: List of group members
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+        '403':
+          description: Forbidden
+        '500':
+          description: Database query failed
+    post:
+      summary: Add User to Group (Admin Only)
+      description: Adds an existing user to the group membership. Requires administrator privileges.
+      tags:
+        - Admin Management
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: group_id
+          in: path
+          required: true
+          description: Group UUID
+          schema:
+            type: string
+            format: uuid
+            example: 11111111-1111-1111-1111-111111111111
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - user_id
+              properties:
+                user_id:
+                  type: string
+                  format: uuid
+                  example: 00000000-0000-0000-0000-000000000000
+      responses:
+        '200':
+          description: User added successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+        '400':
+          description: Invalid request body or missing user_id
+        '403':
+          description: Forbidden
+        '500':
+          description: Database insertion failed
+
+  /api/v1/admin/groups/{group_id}/users/{user_id}:
+    delete:
+      summary: Remove User from Group (Admin Only)
+      description: Removes a user from the logical group membership. Requires administrator privileges.
+      tags:
+        - Admin Management
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: group_id
+          in: path
+          required: true
+          description: Group UUID
+          schema:
+            type: string
+            format: uuid
+            example: 11111111-1111-1111-1111-111111111111
+        - name: user_id
+          in: path
+          required: true
+          description: User UUID
+          schema:
+            type: string
+            format: uuid
+            example: 00000000-0000-0000-0000-000000000000
+      responses:
+        '200':
+          description: User removed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+        '403':
+          description: Forbidden
+        '500':
+          description: Database deletion failed
+
+  /api/v1/admin/groups/{group_id}/devices:
+    get:
+      summary: List Group Devices (Admin Only)
+      description: Lists the serial numbers of all devices mapped to the specified group. Requires administrator privileges.
+      tags:
+        - Admin Management
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: group_id
+          in: path
+          required: true
+          description: Group UUID
+          schema:
+            type: string
+            format: uuid
+            example: 11111111-1111-1111-1111-111111111111
+      responses:
+        '200':
+          description: List of device serial numbers in group
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+                  example: RCLBYQWFES4ZLR4
+        '403':
+          description: Forbidden
+        '500':
+          description: Database query failed
+    post:
+      summary: Add Device to Group (Admin Only)
+      description: Associates a device with the group. Requires administrator privileges.
+      tags:
+        - Admin Management
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: group_id
+          in: path
+          required: true
+          description: Group UUID
+          schema:
+            type: string
+            format: uuid
+            example: 11111111-1111-1111-1111-111111111111
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - serial
+              properties:
+                serial:
+                  type: string
+                  example: RCLBYQWFES4ZLR4
+      responses:
+        '200':
+          description: Device associated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+        '400':
+          description: Invalid request body or missing serial
+        '403':
+          description: Forbidden
+        '500':
+          description: Database mapping failed
+
+  /api/v1/admin/groups/{group_id}/devices/{serial}:
+    delete:
+      summary: Remove Device from Group (Admin Only)
+      description: Dissociates a device from the group scope. Requires administrator privileges.
+      tags:
+        - Admin Management
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: group_id
+          in: path
+          required: true
+          description: Group UUID
+          schema:
+            type: string
+            format: uuid
+            example: 11111111-1111-1111-1111-111111111111
+        - name: serial
+          in: path
+          required: true
+          description: Device Serial
+          schema:
+            type: string
+            example: RCLBYQWFES4ZLR4
+      responses:
+        '200':
+          description: Device removed from group successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+        '403':
+          description: Forbidden
+        '500':
+          description: Database deletion failed
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Enter the JSON Web Token (JWT) received after login.
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: Programmatic API Key token generated inside user auth keys panel.
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 00000000-0000-0000-0000-000000000000
+        email:
+          type: string
+          format: email
+          example: admin@domain.com
+        role:
+          type: string
+          enum: [admin, group_admin, user, viewer]
+          example: admin
+        auth_provider:
+          type: string
+          example: local
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-07-05T07:36:54Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2026-07-05T07:36:54Z"
+
+    Group:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 11111111-1111-1111-1111-111111111111
+        name:
+          type: string
+          example: Public
+        description:
+          type: string
+          example: Default public group
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-07-05T07:36:54Z"
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: null
+
+    ApiKey:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 22222222-2222-2222-2222-222222222222
+        user_id:
+          type: string
+          format: uuid
+          example: 00000000-0000-0000-0000-000000000000
+        name:
+          type: string
+          example: CI/CD Key
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-07-05T12:00:00Z"
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-08-05T12:00:00Z"
+
+    Device:
+      type: object
+      properties:
+        serial:
+          type: string
+          example: RCLBYQWFES4ZLR4
+        provider_id:
+          type: string
+          description: Host IP of the provider managing this device.
+          example: 192.168.1.100
+        model:
+          type: string
+          example: realme RMX3085
+        manufacturer:
+          type: string
+          example: realme
+        platform:
+          type: string
+          enum: [android, ios]
+          example: android
+        os_version:
+          type: string
+          example: "12"
+        android:
+          type: string
+          description: Legacy version compatibility field (matches os_version).
+          example: "12"
+        sdk:
+          type: integer
+          example: 31
+        abi:
+          type: string
+          example: arm64-v8a
+        ram_mb:
+          type: integer
+          format: int64
+          example: 8192
+        storage_mb:
+          type: integer
+          format: int64
+          example: 128000
+        display:
+          type: string
+          example: 1080x2400 @ 405dpi
+        battery:
+          type: integer
+          example: 92
+        wifi_ssid:
+          type: string
+          example: Corporate-Wifi
+        ip:
+          type: string
+          example: 192.168.1.115
+        status:
+          type: string
+          enum: [idle, claimed, busy, offline]
+          example: idle
+        stream_port:
+          type: integer
+          description: Allocated MJPEG stream port. 0 if not claimed.
+          example: 0
+        connected_at:
+          type: string
+          format: date-time
+          example: "2026-07-09T23:26:00Z"
+        file_system:
+          type: object
+          description: File hierarchy JSON data (if cached/browsed).
+          nullable: true
+          example: null
+        installed_browsers:
+          type: array
+          items:
+            type: string
+          description: Installed web browsers detected on the device.
+          nullable: true
+          example: ["com.android.chrome"]
+
+    ScriptDB:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 44444444-4444-4444-4444-444444444444
+        name:
+          type: string
+          example: Launch Chrome
+        content:
+          type: string
+          description: Raw YAML DSL script content.
+          example: |
+            variables:
+              step_delay_ms: "500"
+            steps:
+              - launch: { package: "com.android.chrome" }
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-07-06T15:30:00Z"
+
+    ReportDB:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 55555555-5555-5555-5555-555555555555
+        script_id:
+          type: string
+          format: uuid
+          example: 44444444-4444-4444-4444-444444444444
+        serial:
+          type: string
+          example: RCLBYQWFES4ZLR4
+        success:
+          type: boolean
+          example: true
+        start_time:
+          type: string
+          format: date-time
+          example: "2026-07-06T15:31:00Z"
+        end_time:
+          type: string
+          format: date-time
+          example: "2026-07-06T15:31:12Z"
+
+    StepResult:
+      type: object
+      properties:
+        index:
+          type: integer
+          description: Step execution sequence index.
+          example: 0
+        action:
+          type: string
+          enum: [launch, terminate, click, input, swipe, wait, assert, if, unknown]
+          example: launch
+        success:
+          type: boolean
+          example: true
+        durationMs:
+          type: integer
+          format: int64
+          example: 1200
+        error:
+          type: string
+          description: Failure error logs, if success is false.
+          example: "launch failed"
+        screenshot:
+          type: string
+          format: byte
+          description: Base64-encoded binary JPG screenshot captured if step fails. Only present on error.
+          example: ""
+
+    ReportDetail:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 55555555-5555-5555-5555-555555555555
+        script_id:
+          type: string
+          format: uuid
+          example: 44444444-4444-4444-4444-444444444444
+        serial:
+          type: string
+          example: RCLBYQWFES4ZLR4
+        success:
+          type: boolean
+          example: true
+        start_time:
+          type: string
+          format: date-time
+          example: "2026-07-06T15:31:00Z"
+        end_time:
+          type: string
+          format: date-time
+          example: "2026-07-06T15:31:12Z"
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/StepResult'

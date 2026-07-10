@@ -81,6 +81,40 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/v1/admin/groups", s.handleAdminGroups)
 	mux.HandleFunc("/api/v1/admin/groups/", s.handleAdminGroupAction)
 
+	// Swagger documentation endpoints
+	mux.HandleFunc("/swagger.yaml", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "docs/openapi.yaml")
+	})
+	mux.HandleFunc("/docs", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = w.Write([]byte(`<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Protean API Documentation</title>
+    <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui.css" />
+  </head>
+  <body>
+    <div id="swagger-ui"></div>
+    <script src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-bundle.js" crossorigin></script>
+    <script>
+      window.onload = () => {
+        window.ui = SwaggerUIBundle({
+          url: '/swagger.yaml?t=' + new Date().getTime(),
+          dom_id: '#swagger-ui',
+          deepLinking: true,
+          presets: [
+            SwaggerUIBundle.presets.apis
+          ],
+          layout: "BaseLayout"
+        });
+      };
+    </script>
+  </body>
+</html>`))
+	})
+
 	// Register auth HTTP endpoints
 	s.authService.RegisterHandlers(mux)
 

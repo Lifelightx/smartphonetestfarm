@@ -1,0 +1,4 @@
+time=2026-07-10T08:10:21.159+05:30 level=INFO source=protean-provider/cmd/coordinator/main.go:27 msg="protean-coordinator starting" grpc_port=9000 postgres_uri="postgres://postgres:123456@localhost:5455/protean?sslmode=disable"
+time=2026-07-10T08:10:21.173+05:30 level=INFO source=protean-provider/internal/db/db.go:153 msg="coordinator db: migrations applied successfully"
+time=2026-07-10T08:10:21.173+05:30 level=INFO source=protean-provider/internal/coordinator_server/server.go:61 msg="coordinator: gRPC server listening" port=9000
+time=2026-07-10T08:10:21.173+05:30 level=INFO source=protean-provider/internal/coordinator_server/server.go:127 msg="coordinator: HTTP API listening" port=9002
