@@ -1187,10 +1187,6 @@ components:
         os_version:
           type: string
           example: "12"
-        android:
-          type: string
-          description: Legacy version compatibility field (matches os_version).
-          example: "12"
         sdk:
           type: integer
           example: 31

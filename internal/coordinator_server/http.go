@@ -26,7 +26,6 @@ type DeviceJSON struct {
 	Manufacturer      string          `json:"manufacturer"`
 	Platform          string          `json:"platform"`
 	OSVersion         string          `json:"os_version"`
-	Android           string          `json:"android"` // legacy compat
 	SDK               int             `json:"sdk"`
 	ABI               string          `json:"abi"`
 	RAM               int64           `json:"ram_mb"`
@@ -44,7 +43,7 @@ type DeviceJSON struct {
 
 func (s *Server) getDevice(serial string) (*DeviceJSON, error) {
 	row := s.db.RawDB().QueryRow(`
-		SELECT serial, provider_ip, model, manufacturer, platform, os_version, android, sdk, abi, ram_mb, storage_mb,
+		SELECT serial, provider_ip, model, manufacturer, platform, os_version, sdk, abi, ram_mb, storage_mb,
 		       display_width || 'x' || display_height || ' @ ' || display_dpi || 'dpi',
 		       battery, wifi_ssid, ip, status, stream_port, connected_at,
 		       file_system, installed_browsers
@@ -55,7 +54,7 @@ func (s *Server) getDevice(serial string) (*DeviceJSON, error) {
 	var d DeviceJSON
 	var fsJson sql.NullString
 	var brJson sql.NullString
-	err := row.Scan(&d.Serial, &d.ProviderID, &d.Model, &d.Manufacturer, &d.Platform, &d.OSVersion, &d.Android, &d.SDK, &d.ABI, &d.RAM, &d.Storage, &d.Display, &d.Battery, &d.WiFi, &d.IP, &d.Status, &d.StreamPort, &d.ConnectedAt, &fsJson, &brJson)
+	err := row.Scan(&d.Serial, &d.ProviderID, &d.Model, &d.Manufacturer, &d.Platform, &d.OSVersion, &d.SDK, &d.ABI, &d.RAM, &d.Storage, &d.Display, &d.Battery, &d.WiFi, &d.IP, &d.Status, &d.StreamPort, &d.ConnectedAt, &fsJson, &brJson)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +72,7 @@ func (s *Server) getDevicesList(userID string, isAdmin bool) ([]DeviceJSON, erro
 	var err error
 	if isAdmin {
 		rows, err = s.db.RawDB().Query(`
-			SELECT serial, provider_ip, model, manufacturer, platform, os_version, android, sdk, abi, ram_mb, storage_mb,
+			SELECT serial, provider_ip, model, manufacturer, platform, os_version, sdk, abi, ram_mb, storage_mb,
 			       display_width || 'x' || display_height || ' @ ' || display_dpi || 'dpi',
 			       battery, wifi_ssid, ip, status, stream_port, connected_at,
 			       file_system, installed_browsers
@@ -87,7 +86,7 @@ func (s *Server) getDevicesList(userID string, isAdmin bool) ([]DeviceJSON, erro
 			END, connected_at DESC`)
 	} else {
 		rows, err = s.db.RawDB().Query(`
-			SELECT d.serial, d.provider_ip, d.model, d.manufacturer, d.platform, d.os_version, d.android, d.sdk, d.abi, d.ram_mb, d.storage_mb,
+			SELECT d.serial, d.provider_ip, d.model, d.manufacturer, d.platform, d.os_version, d.sdk, d.abi, d.ram_mb, d.storage_mb,
 			       d.display_width || 'x' || d.display_height || ' @ ' || d.display_dpi || 'dpi',
 			       d.battery, d.wifi_ssid, d.ip, d.status, d.stream_port, d.connected_at,
 			       d.file_system, d.installed_browsers
@@ -115,7 +114,7 @@ func (s *Server) getDevicesList(userID string, isAdmin bool) ([]DeviceJSON, erro
 		var d DeviceJSON
 		var fsJson sql.NullString
 		var brJson sql.NullString
-		err := rows.Scan(&d.Serial, &d.ProviderID, &d.Model, &d.Manufacturer, &d.Platform, &d.OSVersion, &d.Android, &d.SDK, &d.ABI, &d.RAM, &d.Storage, &d.Display, &d.Battery, &d.WiFi, &d.IP, &d.Status, &d.StreamPort, &d.ConnectedAt, &fsJson, &brJson)
+		err := rows.Scan(&d.Serial, &d.ProviderID, &d.Model, &d.Manufacturer, &d.Platform, &d.OSVersion, &d.SDK, &d.ABI, &d.RAM, &d.Storage, &d.Display, &d.Battery, &d.WiFi, &d.IP, &d.Status, &d.StreamPort, &d.ConnectedAt, &fsJson, &brJson)
 		if err != nil {
 			return nil, err
 		}

@@ -6,30 +6,50 @@ import (
 	"testing"
 	"time"
 
+	"github.com/danielpaulus/go-ios/ios"
 	"protean-provider/internal/domain"
 	"protean-provider/internal/goios"
 )
 
 func TestTracker_Watch(t *testing.T) {
-	discoverCount := 0
 	mock := &mockCLIClient{
-		runNoUDIDFunc: func(ctx context.Context, args ...string) ([]byte, error) {
-			if len(args) > 0 && args[0] == "list" {
-				discoverCount++
-				if discoverCount == 1 {
-					return []byte(`[{"udid": "ios-device-1", "name": "iPhone 15", "type": "iPhone16,1", "version": "17.4"}]`), nil
-				}
-				return []byte(`[]`), nil
-			}
-			return nil, errors.New("unexpected command")
-		},
 		runFunc: func(ctx context.Context, udid string, args ...string) ([]byte, error) {
 			return []byte(`{"ProductType": "iPhone16,1", "ProductVersion": "17.4"}`), nil
 		},
 	}
 
+	eventChan := make(chan ios.AttachedMessage, 5)
+	eventChan <- ios.AttachedMessage{
+		MessageType: "Attached",
+		Properties: ios.DeviceProperties{
+			SerialNumber: "ios-device-1",
+		},
+	}
+	eventChan <- ios.AttachedMessage{
+		MessageType: "Detached",
+		Properties: ios.DeviceProperties{
+			SerialNumber: "ios-device-1",
+		},
+	}
+
+	mockListen := func() (func() (ios.AttachedMessage, error), func() error, error) {
+		listenFunc := func() (ios.AttachedMessage, error) {
+			select {
+			case msg := <-eventChan:
+				return msg, nil
+			case <-time.After(500 * time.Millisecond):
+				return ios.AttachedMessage{}, errors.New("no more events")
+			}
+		}
+		closeFunc := func() error {
+			return nil
+		}
+		return listenFunc, closeFunc, nil
+	}
+
 	dm := goios.NewDeviceManager(mock)
 	tracker := goios.NewTracker(dm, 10*time.Millisecond)
+	tracker.ListenFn = mockListen
 
 	ch := make(chan domain.DeviceEvent, 10)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -48,7 +68,7 @@ func TestTracker_Watch(t *testing.T) {
 		if eventConnected.Serial != "ios-device-1" {
 			t.Errorf("expected serial ios-device-1, got %s", eventConnected.Serial)
 		}
-	case <-time.After(500 * time.Millisecond):
+	case <-time.After(1000 * time.Millisecond):
 		t.Fatal("timeout waiting for EventConnected")
 	}
 
@@ -61,7 +81,7 @@ func TestTracker_Watch(t *testing.T) {
 		if eventDisconnected.Serial != "ios-device-1" {
 			t.Errorf("expected serial ios-device-1, got %s", eventDisconnected.Serial)
 		}
-	case <-time.After(500 * time.Millisecond):
+	case <-time.After(1000 * time.Millisecond):
 		t.Fatal("timeout waiting for EventDisconnected")
 	}
 }

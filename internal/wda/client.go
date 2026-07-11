@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 )
@@ -71,7 +72,13 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		respBody, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("wda client: server returned status %d: %s", resp.StatusCode, string(respBody))
+		bodyStr := string(respBody)
+		if resp.StatusCode == 404 && (strings.Contains(bodyStr, "Session does not exist") || strings.Contains(bodyStr, "invalid session id")) {
+			c.mu.Lock()
+			c.sessionID = ""
+			c.mu.Unlock()
+		}
+		return fmt.Errorf("wda client: server returned status %d: %s", resp.StatusCode, bodyStr)
 	}
 
 	if responseVal != nil {

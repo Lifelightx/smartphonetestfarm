@@ -95,3 +95,36 @@ func TestWDA_ClientLifecycle(t *testing.T) {
 		t.Errorf("delete session failed: %v", err)
 	}
 }
+
+func TestWDA_InvalidSessionAutoClear(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == "POST" && r.URL.Path == "/session/wda-session-123/actions" {
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"value": {"error": "invalid session id", "message": "Session does not exist"}}`))
+		} else {
+			w.WriteHeader(http.StatusOK)
+		}
+	}))
+	defer server.Close()
+
+	u, _ := url.Parse(server.URL)
+	port, _ := strconv.Atoi(u.Port())
+
+	client := wda.NewClient(port)
+	client.SetSessionID("wda-session-123")
+
+	if client.SessionID() != "wda-session-123" {
+		t.Fatalf("expected initial session ID to be wda-session-123")
+	}
+
+	err := client.Tap(context.Background(), 100, 200)
+	if err == nil {
+		t.Fatalf("expected error from failed tap")
+	}
+
+	// Should have cleared session ID
+	if client.SessionID() != "" {
+		t.Errorf("expected session ID to be cleared after 404 Session does not exist response, but got %s", client.SessionID())
+	}
+}

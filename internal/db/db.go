@@ -57,7 +57,6 @@ func (d *DB) migrate() error {
 			provider_ip TEXT NOT NULL REFERENCES providers(ip) ON DELETE CASCADE,
 			model TEXT NOT NULL,
 			manufacturer TEXT NOT NULL,
-			android TEXT NOT NULL,
 			sdk INT NOT NULL,
 			abi TEXT NOT NULL,
 			ram_mb BIGINT NOT NULL,
@@ -86,7 +85,7 @@ func (d *DB) migrate() error {
 		`ALTER TABLE devices ADD COLUMN IF NOT EXISTS installed_browsers JSON;`,
 		`ALTER TABLE devices ADD COLUMN IF NOT EXISTS platform TEXT NOT NULL DEFAULT 'android';`,
 		`ALTER TABLE devices ADD COLUMN IF NOT EXISTS os_version TEXT NOT NULL DEFAULT '';`,
-		`UPDATE devices SET os_version = android WHERE os_version = '';`,
+		`ALTER TABLE devices DROP COLUMN IF EXISTS android;`,
 		`UPDATE devices SET platform = 'ios' WHERE manufacturer = 'Apple';`,
 		`CREATE TABLE IF NOT EXISTS automation_scripts (
 			id UUID PRIMARY KEY,
@@ -220,16 +219,15 @@ func (d *DB) RegisterDevice(providerIP, serial, model, manufacturer, android str
 
 	query := `
 		INSERT INTO devices (
-			serial, provider_ip, model, manufacturer, android, sdk, abi, ram_mb, storage_mb,
+			serial, provider_ip, model, manufacturer, sdk, abi, ram_mb, storage_mb,
 			display_width, display_height, display_dpi, battery, wifi_ssid, ip, status, connected_at, updated_at,
 			platform, os_version
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'idle', $16, NOW(), $17, $18)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'idle', $15, NOW(), $16, $17)
 		ON CONFLICT (serial) DO UPDATE SET
 			provider_ip = EXCLUDED.provider_ip,
 			model = EXCLUDED.model,
 			manufacturer = EXCLUDED.manufacturer,
-			android = EXCLUDED.android,
 			sdk = EXCLUDED.sdk,
 			abi = EXCLUDED.abi,
 			ram_mb = EXCLUDED.ram_mb,
@@ -245,7 +243,7 @@ func (d *DB) RegisterDevice(providerIP, serial, model, manufacturer, android str
 			updated_at = NOW(),
 			platform = EXCLUDED.platform,
 			os_version = EXCLUDED.os_version;`
-	_, err := d.db.Exec(query, serial, providerIP, model, manufacturer, android, sdk, abi, ram, storage, width, height, dpi, battery, wifi, ip, connectedAt, platform, osVersion)
+	_, err := d.db.Exec(query, serial, providerIP, model, manufacturer, sdk, abi, ram, storage, width, height, dpi, battery, wifi, ip, connectedAt, platform, osVersion)
 	if err != nil {
 		return err
 	}

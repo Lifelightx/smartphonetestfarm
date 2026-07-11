@@ -29,7 +29,7 @@ const hardwareItems = [
       const isIOS = device.platform === 'ios' || device.manufacturer === 'Apple';
       const osName = isIOS ? 'iOS' : 'Android';
       const sdkInfo = isIOS ? '' : ` (SDK ${device.sdk})`;
-      return `${osName} ${device.os_version || device.android}${sdkInfo}`;
+      return `${osName} ${device.os_version}${sdkInfo}`;
     },
     icon: Smartphone,
     colorClass: 'color-blue',
