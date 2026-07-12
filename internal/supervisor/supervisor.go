@@ -191,6 +191,7 @@ func (s *Supervisor) get(serial string) (*DeviceSupervisor, error) {
 	return ds, nil
 }
 
+// count performs the count operation.
 func (s *Supervisor) count() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

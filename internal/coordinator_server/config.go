@@ -1,3 +1,8 @@
+// Package coordinator_server implements coordinator HTTP, WebSockets, and administrative APIs.
+//
+// File: config.go
+// This file contains implementation and helper structures for coordinator HTTP, WebSockets, and administrative APIs.
+
 package coordinator_server
 
 import (
@@ -14,6 +19,7 @@ type Config struct {
 	BypassAuthInDev bool
 }
 
+// LoadConfig performs the load config operation.
 func LoadConfig() Config {
 	port := 9000
 	if pStr := os.Getenv("COORDINATOR_GRPC_PORT"); pStr != "" {

@@ -1,3 +1,8 @@
+// Package domain implements core domain types, entities, and interfaces.
+//
+// File: provider.go
+// This file contains implementation and helper structures for core domain types, entities, and interfaces.
+
 package domain
 
 // Provider represents this running instance of the STF provider.

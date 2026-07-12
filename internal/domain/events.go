@@ -1,3 +1,8 @@
+// Package domain implements core domain types, entities, and interfaces.
+//
+// File: events.go
+// This file contains implementation and helper structures for core domain types, entities, and interfaces.
+
 package domain
 
 import "time"
@@ -16,6 +21,6 @@ const (
 type DeviceEvent struct {
 	Serial    string
 	Type      EventType
-	Device    *Device   // populated on EventConnected (after property fetch); nil otherwise
+	Device    *Device // populated on EventConnected (after property fetch); nil otherwise
 	Timestamp time.Time
 }

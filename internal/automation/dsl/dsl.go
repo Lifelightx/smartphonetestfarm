@@ -1,3 +1,8 @@
+// Package dsl implements test script execution, scheduling, compiling, and locators (dsl).
+//
+// File: dsl.go
+// This file contains implementation and helper structures for test script execution, scheduling, compiling, and locators (dsl).
+
 package dsl
 
 import (
@@ -130,11 +135,11 @@ type TerminateParams struct {
 
 // Locator represents a single element-finding strategy with a confidence score.
 type Locator struct {
-	Strategy   string  `yaml:"strategy"`             // resourceId, text, contentDesc, xpath, coordinates
-	Value      string  `yaml:"value"`                // the selector value
-	Confidence int     `yaml:"confidence"`           // 0-100, higher = more reliable
-	X          float64 `yaml:"x,omitempty"`          // only for strategy=coordinates
-	Y          float64 `yaml:"y,omitempty"`          // only for strategy=coordinates
+	Strategy   string  `yaml:"strategy"`    // resourceId, text, contentDesc, xpath, coordinates
+	Value      string  `yaml:"value"`       // the selector value
+	Confidence int     `yaml:"confidence"`  // 0-100, higher = more reliable
+	X          float64 `yaml:"x,omitempty"` // only for strategy=coordinates
+	Y          float64 `yaml:"y,omitempty"` // only for strategy=coordinates
 }
 
 // AnchorContext provides disambiguation context.

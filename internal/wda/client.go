@@ -1,3 +1,8 @@
+// Package wda implements WebDriverAgent (WDA) client for iOS automation and interaction.
+//
+// File: client.go
+// This file contains implementation and helper structures for WebDriverAgent (WDA) client for iOS automation and interaction.
+
 package wda
 
 import (

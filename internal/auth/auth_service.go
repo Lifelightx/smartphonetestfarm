@@ -1,3 +1,8 @@
+// Package auth implements authentication, user sessions, JWT handling, and middleware.
+//
+// File: auth_service.go
+// This file contains implementation and helper structures for authentication, user sessions, JWT handling, and middleware.
+
 package auth
 
 import (
@@ -21,6 +26,7 @@ type AuthService struct {
 	jwtManager *JWTManager
 }
 
+// NewAuthService initializes a new auth service.
 func NewAuthService(db *db.DB, jwtManager *JWTManager) *AuthService {
 	return &AuthService{
 		db:         db,

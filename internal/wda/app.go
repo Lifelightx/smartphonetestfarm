@@ -1,3 +1,8 @@
+// Package wda implements WebDriverAgent (WDA) client for iOS automation and interaction.
+//
+// File: app.go
+// This file contains implementation and helper structures for WebDriverAgent (WDA) client for iOS automation and interaction.
+
 package wda
 
 import (
@@ -58,4 +63,3 @@ func (c *Client) OpenURL(ctx context.Context, urlStr string) error {
 
 	return nil
 }
-

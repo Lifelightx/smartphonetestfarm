@@ -1,3 +1,8 @@
+// Package db implements database operations, migrations, and persistence.
+//
+// File: db.go
+// This file contains implementation and helper structures for database operations, migrations, and persistence.
+
 package db
 
 import (
@@ -18,10 +23,12 @@ type DB struct {
 	db *sql.DB
 }
 
+// RawDB performs the raw DB operation.
 func (d *DB) RawDB() *sql.DB {
 	return d.db
 }
 
+// OpenDB performs the open DB operation.
 func OpenDB(postgresURI string) (*DB, error) {
 	db, err := sql.Open("postgres", postgresURI)
 	if err != nil {
@@ -41,6 +48,7 @@ func OpenDB(postgresURI string) (*DB, error) {
 	return d, nil
 }
 
+// migrate performs the migrate operation.
 func (d *DB) migrate() error {
 	queries := []string{
 		`CREATE TABLE IF NOT EXISTS providers (
@@ -195,6 +203,7 @@ func (d *DB) migrate() error {
 	return nil
 }
 
+// RegisterProvider registers the provider.
 func (d *DB) RegisterProvider(ip, name, host string, minPort, maxPort int, version string) error {
 	query := `
 		INSERT INTO providers (ip, name, host, min_port, max_port, version, updated_at)
@@ -210,6 +219,7 @@ func (d *DB) RegisterProvider(ip, name, host string, minPort, maxPort int, versi
 	return err
 }
 
+// RegisterDevice registers the device.
 func (d *DB) RegisterDevice(providerIP, serial, model, manufacturer, android string, sdk int, abi string, ram, storage int64, width, height, dpi, battery int, wifi, ip string, connectedAt time.Time) error {
 	platform := "android"
 	if manufacturer == "Apple" || sdk == 0 {
@@ -268,18 +278,21 @@ func (d *DB) RegisterDevice(providerIP, serial, model, manufacturer, android str
 	return nil
 }
 
+// ReleaseDevice performs the release device operation.
 func (d *DB) ReleaseDevice(serial string) error {
 	query := `UPDATE devices SET status = 'offline', updated_at = NOW() WHERE serial = $1`
 	_, err := d.db.Exec(query, serial)
 	return err
 }
 
+// UpdateDeviceHeartbeat updates the device heartbeat.
 func (d *DB) UpdateDeviceHeartbeat(serial string) error {
 	query := `UPDATE devices SET status = CASE WHEN status = 'offline' THEN 'idle' ELSE status END, updated_at = NOW() WHERE serial = $1`
 	_, err := d.db.Exec(query, serial)
 	return err
 }
 
+// UpdateDeviceState updates the device state.
 func (d *DB) UpdateDeviceState(serial string, battery int, wifi, fileSystemJSON, installedBrowsersJSON string) error {
 	query := `
 		UPDATE devices SET
@@ -293,6 +306,7 @@ func (d *DB) UpdateDeviceState(serial string, battery int, wifi, fileSystemJSON,
 	return err
 }
 
+// CreateSession creates a new session.
 func (d *DB) CreateSession(sessionID, serial, claimedBy string) error {
 	tx, err := d.db.Begin()
 	if err != nil {
@@ -322,6 +336,7 @@ func (d *DB) CreateSession(sessionID, serial, claimedBy string) error {
 	return tx.Commit()
 }
 
+// CloseSession closes the session.
 func (d *DB) CloseSession(serial string) error {
 	tx, err := d.db.Begin()
 	if err != nil {
@@ -348,12 +363,14 @@ func (d *DB) CloseSession(serial string) error {
 	return tx.Commit()
 }
 
+// UpdateDeviceStreamPort updates the device stream port.
 func (d *DB) UpdateDeviceStreamPort(serial string, port int) error {
 	query := `UPDATE devices SET stream_port = $1, updated_at = NOW() WHERE serial = $2`
 	_, err := d.db.Exec(query, port, serial)
 	return err
 }
 
+// GetDeviceProvider retrieves the device provider.
 func (d *DB) GetDeviceProvider(serial string) (string, string, error) {
 	var ip string
 	query := `
@@ -416,6 +433,7 @@ type ScriptDB struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+// ListScripts lists the scripts.
 func (d *DB) ListScripts() ([]ScriptDB, error) {
 	rows, err := d.db.Query(`SELECT id, name, content, created_at FROM automation_scripts ORDER BY created_at DESC`)
 	if err != nil {
@@ -447,6 +465,7 @@ type ReportDB struct {
 	Results   string    `json:"results,omitempty"`
 }
 
+// ListReports lists the reports.
 func (d *DB) ListReports() ([]ReportDB, error) {
 	rows, err := d.db.Query(`SELECT id, script_id, serial, success, start_time, end_time, results FROM automation_reports ORDER BY start_time DESC`)
 	if err != nil {
@@ -494,6 +513,7 @@ func (d *DB) CreateUser(u *domain.User) error {
 	return nil
 }
 
+// GetUserByEmail retrieves the user by email.
 func (d *DB) GetUserByEmail(email string) (*domain.User, error) {
 	var u domain.User
 	query := `SELECT id, email, password_hash, role, auth_provider, created_at, updated_at FROM users WHERE email = $1`
@@ -504,6 +524,7 @@ func (d *DB) GetUserByEmail(email string) (*domain.User, error) {
 	return &u, nil
 }
 
+// GetUserByID retrieves the user by ID.
 func (d *DB) GetUserByID(id string) (*domain.User, error) {
 	var u domain.User
 	query := `SELECT id, email, password_hash, role, auth_provider, created_at, updated_at FROM users WHERE id = $1`
@@ -514,6 +535,7 @@ func (d *DB) GetUserByID(id string) (*domain.User, error) {
 	return &u, nil
 }
 
+// UpdateUserRole updates the user role.
 func (d *DB) UpdateUserRole(id string, role domain.UserRole) error {
 	query := `UPDATE users SET role = $1, updated_at = NOW() WHERE id = $2`
 	if _, err := d.db.Exec(query, string(role), id); err != nil {
@@ -529,12 +551,14 @@ func (d *DB) UpdateUserRole(id string, role domain.UserRole) error {
 	return nil
 }
 
+// DeleteUser deletes the user.
 func (d *DB) DeleteUser(id string) error {
 	query := `DELETE FROM users WHERE id = $1`
 	_, err := d.db.Exec(query, id)
 	return err
 }
 
+// ListUsers lists the users.
 func (d *DB) ListUsers() ([]domain.User, error) {
 	query := `SELECT id, email, role, auth_provider, created_at, updated_at FROM users ORDER BY email ASC`
 	rows, err := d.db.Query(query)
@@ -574,6 +598,7 @@ func (d *DB) CreateGroup(g *domain.Group) error {
 	return nil
 }
 
+// GetGroup retrieves the group.
 func (d *DB) GetGroup(id string) (*domain.Group, error) {
 	var g domain.Group
 	query := `SELECT id, name, description, created_at, expires_at FROM groups WHERE id = $1`
@@ -584,6 +609,7 @@ func (d *DB) GetGroup(id string) (*domain.Group, error) {
 	return &g, nil
 }
 
+// ListGroups lists the groups.
 func (d *DB) ListGroups() ([]domain.Group, error) {
 	rows, err := d.db.Query(`SELECT id, name, description, created_at, expires_at FROM groups ORDER BY name ASC`)
 	if err != nil {
@@ -605,12 +631,14 @@ func (d *DB) ListGroups() ([]domain.Group, error) {
 	return list, nil
 }
 
+// DeleteGroup deletes the group.
 func (d *DB) DeleteGroup(id string) error {
 	query := `DELETE FROM groups WHERE id = $1`
 	_, err := d.db.Exec(query, id)
 	return err
 }
 
+// AddUserToGroup performs the add user to group operation.
 func (d *DB) AddUserToGroup(userID, groupID string) error {
 	var groupName string
 	err := d.db.QueryRow("SELECT name FROM groups WHERE id = $1", groupID).Scan(&groupName)
@@ -633,24 +661,28 @@ func (d *DB) AddUserToGroup(userID, groupID string) error {
 	return nil
 }
 
+// RemoveUserFromGroup removes the user from group.
 func (d *DB) RemoveUserFromGroup(userID, groupID string) error {
 	query := `DELETE FROM user_groups WHERE user_id = $1 AND group_id = $2`
 	_, err := d.db.Exec(query, userID, groupID)
 	return err
 }
 
+// AddDeviceToGroup performs the add device to group operation.
 func (d *DB) AddDeviceToGroup(serial, groupID string) error {
 	query := `INSERT INTO device_groups (serial, group_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`
 	_, err := d.db.Exec(query, serial, groupID)
 	return err
 }
 
+// RemoveDeviceFromGroup removes the device from group.
 func (d *DB) RemoveDeviceFromGroup(serial, groupID string) error {
 	query := `DELETE FROM device_groups WHERE serial = $1 AND group_id = $2`
 	_, err := d.db.Exec(query, serial, groupID)
 	return err
 }
 
+// GetUserGroups retrieves the user groups.
 func (d *DB) GetUserGroups(userID string) ([]domain.Group, error) {
 	query := `
 		SELECT g.id, g.name, g.description, g.created_at, g.expires_at
@@ -678,6 +710,7 @@ func (d *DB) GetUserGroups(userID string) ([]domain.Group, error) {
 	return list, nil
 }
 
+// GetDeviceGroups retrieves the device groups.
 func (d *DB) GetDeviceGroups(serial string) ([]domain.Group, error) {
 	query := `
 		SELECT g.id, g.name, g.description, g.created_at, g.expires_at
@@ -713,6 +746,7 @@ func (d *DB) CreateApiKey(k *domain.ApiKey) error {
 	return err
 }
 
+// GetApiKeyByHash retrieves the API key by hash.
 func (d *DB) GetApiKeyByHash(hash string) (*domain.ApiKey, error) {
 	var k domain.ApiKey
 	query := `SELECT id, user_id, name, token_hash, created_at, expires_at FROM api_keys WHERE token_hash = $1`
@@ -723,12 +757,14 @@ func (d *DB) GetApiKeyByHash(hash string) (*domain.ApiKey, error) {
 	return &k, nil
 }
 
+// DeleteApiKey deletes the API key.
 func (d *DB) DeleteApiKey(id string) error {
 	query := `DELETE FROM api_keys WHERE id = $1`
 	_, err := d.db.Exec(query, id)
 	return err
 }
 
+// ListApiKeys lists the API keys.
 func (d *DB) ListApiKeys(userID string) ([]domain.ApiKey, error) {
 	query := `SELECT id, user_id, name, token_hash, created_at, expires_at FROM api_keys WHERE user_id = $1 ORDER BY created_at DESC`
 	rows, err := d.db.Query(query, userID)
@@ -751,6 +787,7 @@ func (d *DB) ListApiKeys(userID string) ([]domain.ApiKey, error) {
 	return list, nil
 }
 
+// GetGroupUsers retrieves the group users.
 func (d *DB) GetGroupUsers(groupID string) ([]domain.User, error) {
 	query := `
 		SELECT u.id, u.email, u.role, u.auth_provider, u.created_at, u.updated_at
@@ -778,6 +815,7 @@ func (d *DB) GetGroupUsers(groupID string) ([]domain.User, error) {
 	return list, nil
 }
 
+// GetGroupDevices retrieves the group devices.
 func (d *DB) GetGroupDevices(groupID string) ([]string, error) {
 	query := `
 		SELECT serial
@@ -803,4 +841,3 @@ func (d *DB) GetGroupDevices(groupID string) ([]string, error) {
 	}
 	return list, nil
 }
-

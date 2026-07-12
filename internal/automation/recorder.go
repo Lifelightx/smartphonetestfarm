@@ -1,3 +1,8 @@
+// Package automation implements test script execution, scheduling, compiling, and locators.
+//
+// File: recorder.go
+// This file contains implementation and helper structures for test script execution, scheduling, compiling, and locators.
+
 package automation
 
 import (
@@ -18,8 +23,8 @@ import (
 // No intelligence here — just facts.
 type RawEvent struct {
 	Time         time.Time
-	Type         string  // "click", "input", "swipe", "launch"
-	Package      string  // launch only
+	Type         string // "click", "input", "swipe", "launch"
+	Package      string // launch only
 	ScreenWidth  int32
 	ScreenHeight int32
 	TouchX       float64

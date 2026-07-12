@@ -1,3 +1,8 @@
+// Package stream implements video streaming handlers, WS relays, and H264/FMP4 processing.
+//
+// File: adb.go
+// This file contains implementation and helper structures for video streaming handlers, WS relays, and H264/FMP4 processing.
+
 package stream
 
 import (
@@ -42,6 +47,7 @@ func PushScrcpyServer(ctx context.Context, serial string) error {
 	return nil
 }
 
+// adbForward performs the ADB forward operation.
 func adbForward(ctx context.Context, serial string, local int, remote string) error {
 	out, err := exec.CommandContext(ctx, "adb", "-s", serial,
 		"forward", fmt.Sprintf("tcp:%d", local), remote,
@@ -52,6 +58,7 @@ func adbForward(ctx context.Context, serial string, local int, remote string) er
 	return nil
 }
 
+// adbForwardRemove performs the ADB forward remove operation.
 func adbForwardRemove(ctx context.Context, serial string, local int) error {
 	_, err := exec.CommandContext(ctx, "adb", "-s", serial,
 		"forward", "--remove", fmt.Sprintf("tcp:%d", local),

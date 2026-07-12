@@ -1,3 +1,8 @@
+// Package auth implements authentication, user sessions, JWT handling, and middleware.
+//
+// File: context.go
+// This file contains implementation and helper structures for authentication, user sessions, JWT handling, and middleware.
+
 package auth
 
 import "context"

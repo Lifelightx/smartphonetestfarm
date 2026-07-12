@@ -1,3 +1,8 @@
+// Package app implements application entry point initialization and service lifecycle.
+//
+// File: app.go
+// This file contains implementation and helper structures for application entry point initialization and service lifecycle.
+
 package app
 
 import (
@@ -12,12 +17,12 @@ import (
 	"time"
 
 	"protean-provider/internal/adb"
+	"protean-provider/internal/agent"
 	"protean-provider/internal/config"
 	"protean-provider/internal/coordinator"
 	"protean-provider/internal/domain"
-	inboundGRPC "protean-provider/internal/grpc"
-	"protean-provider/internal/agent"
 	"protean-provider/internal/goios"
+	inboundGRPC "protean-provider/internal/grpc"
 	"protean-provider/internal/platform"
 	"protean-provider/internal/registry"
 	"protean-provider/internal/stream"
@@ -204,6 +209,7 @@ func (a *App) handleEvent(event domain.DeviceEvent) {
 	}
 }
 
+// onDeviceConnected performs the on device connected operation.
 func (a *App) onDeviceConnected(event domain.DeviceEvent) {
 	if event.Device == nil {
 		slog.Error("device connected but property fetch failed — skipping registration",
@@ -236,7 +242,6 @@ func (a *App) onDeviceConnected(event domain.DeviceEvent) {
 		"total_devices", a.registry.Count(),
 	)
 
-
 	// Install/push scrcpy-server.jar to device (Android only)
 	if strings.EqualFold(d.Platform, "android") {
 		if err := stream.PushScrcpyServer(context.Background(), d.Serial); err != nil {
@@ -259,6 +264,7 @@ func (a *App) onDeviceConnected(event domain.DeviceEvent) {
 	}()
 }
 
+// onDeviceDisconnected performs the on device disconnected operation.
 func (a *App) onDeviceDisconnected(event domain.DeviceEvent) {
 	if err := a.registry.Remove(event.Serial); err != nil {
 		slog.Warn("registry: device not found on disconnect", "serial", event.Serial)
@@ -440,6 +446,3 @@ func (a *App) handleAdminConn(conn net.Conn) {
 		}
 	}
 }
-
-
-

@@ -1,3 +1,8 @@
+// Package automation implements test script execution, scheduling, compiling, and locators.
+//
+// File: android_driver.go
+// This file contains implementation and helper structures for test script execution, scheduling, compiling, and locators.
+
 package automation
 
 import (
@@ -47,7 +52,7 @@ func NewAndroidDriver(serial string, agt *agent.Agent) *AndroidDriver {
 func (d *AndroidDriver) execute(ctx context.Context, args ...string) (string, error) {
 	fullArgs := append([]string{"-s", d.serial}, args...)
 	cmd := exec.CommandContext(ctx, "adb", fullArgs...)
-	
+
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -118,7 +123,7 @@ func (d *AndroidDriver) Tap(ctx context.Context, x, y float64) error {
 		if err == nil {
 			px := float32(x * float64(w))
 			py := float32(y * float64(h))
-			
+
 			payload := map[string]interface{}{
 				"x": px,
 				"y": py,
@@ -165,7 +170,7 @@ func (d *AndroidDriver) Swipe(ctx context.Context, startX, startY, endX, endY fl
 			sy := float32(startY * float64(h))
 			ex := float32(endX * float64(w))
 			ey := float32(endY * float64(h))
-			
+
 			payload := map[string]interface{}{
 				"startX":     sx,
 				"startY":     sy,
@@ -378,4 +383,3 @@ func (d *AndroidDriver) Uninstall(ctx context.Context, appID string) error {
 func (d *AndroidDriver) ScreenSize(ctx context.Context) (width, height int32, err error) {
 	return d.resolveDimensions(ctx)
 }
-

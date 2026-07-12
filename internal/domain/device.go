@@ -1,61 +1,63 @@
+// Package domain implements core domain types, entities, and interfaces.
+//
+// File: device.go
+// This file contains implementation and helper structures for core domain types, entities, and interfaces.
+
 package domain
 
 import (
 	"time"
-
-	
 )
-
 
 type DeviceStatus string
 
-const(
-	StatusOnline DeviceStatus = "online"
-	StatusOffline DeviceStatus = "offline"
+const (
+	StatusOnline       DeviceStatus = "online"
+	StatusOffline      DeviceStatus = "offline"
 	StatusUnauthorized DeviceStatus = "unauthorized"
 )
 
-type DisplayInfo struct{
-	Density int32
-	Fps int32
-	Height int32
+type DisplayInfo struct {
+	Density  int32
+	Fps      int32
+	Height   int32
 	Rotation int32
-	Size float64
-	Width int32
-	XDPI float64
-	YDPI float64
+	Size     float64
+	Width    int32
+	XDPI     float64
+	YDPI     float64
 }
 
-type BatteryInfo struct{
-	Level int
+type BatteryInfo struct {
+	Level      int
 	IsCharging bool
-	Health string
+	Health     string
 }
 
-type NetworkInfo struct{
-	Connected bool
-	WiFiSSID string
-	IP string
+type NetworkInfo struct {
+	Connected  bool
+	WiFiSSID   string
+	IP         string
 	MobileData bool
-	Airplane bool
+	Airplane   bool
 }
 
-type DeviceInfo struct{
-	Model string
-	MarketName string
-	Manufacturer string
+type DeviceInfo struct {
+	Model          string
+	MarketName     string
+	Manufacturer   string
 	AndroidVersion string
-	SDKVersion int
-	CPUABI string
-	RAMMB int64
-	StorageMB int64
+	SDKVersion     int
+	CPUABI         string
+	RAMMB          int64
+	StorageMB      int64
 }
 
-type DeviceState struct{
-	Status DeviceStatus
-	Battery BatteryInfo
-	Network NetworkInfo
-	FileSystem FileSystemInfo
+type DeviceState struct {
+	Status            DeviceStatus
+	Battery           BatteryInfo
+	Network           NetworkInfo
+	FileSystem        FileSystemInfo
 	InstalledBrowsers []string
 }
 
@@ -71,15 +73,15 @@ type FileSystemInfo struct {
 	Files []FileNode `json:"files"`
 }
 
-type Device struct{
-	Serial string
-	Platform string // "android" or "ios"
+type Device struct {
+	Serial     string
+	Platform   string // "android" or "ios"
 	ProviderIP string
 
-	Info DeviceInfo
+	Info    DeviceInfo
 	Display DisplayInfo
-	State DeviceState
+	State   DeviceState
 
 	ConnectedAt time.Time
-	LastSeen time.Time
+	LastSeen    time.Time
 }

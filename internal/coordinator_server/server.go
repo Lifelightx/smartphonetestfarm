@@ -1,3 +1,8 @@
+// Package coordinator_server implements coordinator HTTP, WebSockets, and administrative APIs.
+//
+// File: server.go
+// This file contains implementation and helper structures for coordinator HTTP, WebSockets, and administrative APIs.
+
 package coordinator_server
 
 import (
@@ -32,6 +37,7 @@ type Server struct {
 	authService *auth.AuthService
 }
 
+// NewServer initializes a new server.
 func NewServer(cfg Config, db *DB) *Server {
 	jwtMgr := auth.NewJWTManager(cfg.JWTSecret, cfg.JWTIssuer, cfg.OIDCJWKSURL)
 	authSrv := auth.NewAuthService(db, jwtMgr)

@@ -1,3 +1,8 @@
+// Package goios implements native iOS communication using the go-ios library.
+//
+// File: client.go
+// This file contains implementation and helper structures for native iOS communication using the go-ios library.
+
 package goios
 
 import (
@@ -33,6 +38,7 @@ func (c *CLIClient) RunNoUDID(ctx context.Context, args ...string) ([]byte, erro
 	return c.execute(ctx, args...)
 }
 
+// execute performs the execute operation.
 func (c *CLIClient) execute(ctx context.Context, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, c.binPath, args...)
 	slog.Debug("goios CLI: running command", "bin", c.binPath, "args", strings.Join(args, " "))

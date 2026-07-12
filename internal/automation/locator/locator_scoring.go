@@ -1,3 +1,8 @@
+// Package locator implements test script execution, scheduling, compiling, and locators (locator).
+//
+// File: locator_scoring.go
+// This file contains implementation and helper structures for test script execution, scheduling, compiling, and locators (locator).
+
 package locator
 
 import (
@@ -102,7 +107,7 @@ func ScoreActionableNode(node *dsl.UIElement, screenWidth, screenHeight int32) i
 	if IsScrollContainerClass(cls) {
 		score -= 200 // Scroll containers are almost never the direct click target
 	} else if IsContainerClass(cls) {
-		score -= 80  // Standard layouts
+		score -= 80 // Standard layouts
 	} else if cls == "android.view.View" {
 		score -= 120 // Empty/raw views are usually transparent overlays
 	}
@@ -151,7 +156,7 @@ func FindBestElementAt(root *dsl.UIElement, x, y float64, width, height int32) *
 	py := int(y * float64(height))
 
 	var candidates []*dsl.UIElement
-	
+
 	// Helper to find all elements containing (px, py)
 	var walk func(n *dsl.UIElement)
 	walk = func(n *dsl.UIElement) {
@@ -225,6 +230,7 @@ func FindBestNodeAt(xmlData string, x, y float64, width, height int32) (*dsl.XML
 	return bestEl.XMLRef, xpath
 }
 
+// buildXPathForElement performs the build xpath for element operation.
 func buildXPathForElement(el *dsl.UIElement) string {
 	var parts []string
 	curr := el

@@ -1,3 +1,8 @@
+// Package automation implements test script execution, scheduling, compiling, and locators.
+//
+// File: runner_handlers.go
+// This file contains implementation and helper structures for test script execution, scheduling, compiling, and locators.
+
 package automation
 
 import (
@@ -25,9 +30,10 @@ func (r *Runner) handleClick(ctx context.Context, params *ClickParams) error {
 	return r.handleClickLegacy(ctx, params)
 }
 
+// handleClickWithTarget handles the click with target request/event.
 func (r *Runner) handleClickWithTarget(ctx context.Context, params *ClickParams) error {
-	slog.Info("automation runner: attempting click with Target UIElement", 
-		"resourceId", params.Target.ResourceID, 
+	slog.Info("automation runner: attempting click with Target UIElement",
+		"resourceId", params.Target.ResourceID,
 		"text", params.Target.Text,
 		"class", params.Target.Class,
 	)
@@ -108,6 +114,7 @@ func (r *Runner) handleClickWithTarget(ctx context.Context, params *ClickParams)
 	return r.tapUIElement(ctx, matchedNode, params.X, params.Y)
 }
 
+// handleClickWithLocators handles the click with locators request/event.
 func (r *Runner) handleClickWithLocators(ctx context.Context, params *ClickParams) error {
 	locators := make([]Locator, len(params.Locators))
 	copy(locators, params.Locators)
@@ -159,6 +166,7 @@ func (r *Runner) handleClickWithLocators(ctx context.Context, params *ClickParam
 	return fmt.Errorf("click: all locators exhausted and no coordinates available")
 }
 
+// handleClickLegacy handles the click legacy request/event.
 func (r *Runner) handleClickLegacy(ctx context.Context, params *ClickParams) error {
 	hasStrongSelector := params.ResourceID != "" || params.ContentDesc != "" || params.Text != "" || params.XPath != ""
 
@@ -375,6 +383,7 @@ func (r *Runner) handleWait(ctx context.Context, params *WaitParams) error {
 	return err
 }
 
+// handleAssert handles the assert request/event.
 func (r *Runner) handleAssert(ctx context.Context, params *AssertParams) error {
 	timeoutMs := params.TimeoutMs
 	if timeoutMs <= 0 {

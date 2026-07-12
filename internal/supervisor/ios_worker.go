@@ -1,3 +1,8 @@
+// Package supervisor implements device worker supervisors, state tracking, and port management.
+//
+// File: ios_worker.go
+// This file contains implementation and helper structures for device worker supervisors, state tracking, and port management.
+
 package supervisor
 
 import (
@@ -317,4 +322,3 @@ func (w *IOSWorker) Stop() {
 	_ = cleanupCmd.Run()
 	slog.Info("ios worker: stopped", "serial", w.serial)
 }
-

@@ -1,3 +1,8 @@
+// Package logger implements structured logging helpers.
+//
+// File: logger.go
+// This file contains implementation and helper structures for structured logging helpers.
+
 package logger
 
 import (

@@ -1,3 +1,8 @@
+// Package domain implements core domain types, entities, and interfaces.
+//
+// File: automation.go
+// This file contains implementation and helper structures for core domain types, entities, and interfaces.
+
 package domain
 
 import (

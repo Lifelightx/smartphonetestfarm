@@ -1,3 +1,8 @@
+// Package stream implements video streaming handlers, WS relays, and H264/FMP4 processing.
+//
+// File: helpers.go
+// This file contains implementation and helper structures for video streaming handlers, WS relays, and H264/FMP4 processing.
+
 package stream
 
 import (

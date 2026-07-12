@@ -1,3 +1,8 @@
+// Package stream implements video streaming handlers, WS relays, and H264/FMP4 processing.
+//
+// File: ws.go
+// This file contains implementation and helper structures for video streaming handlers, WS relays, and H264/FMP4 processing.
+
 package stream
 
 import (
@@ -259,7 +264,7 @@ func (m *Manager) handleWS(w http.ResponseWriter, r *http.Request, serial string
 					isSwipe := dx*dx+dy*dy > 0.0025
 
 					s.gestureMu.Unlock()
-					
+
 					go func() {
 						var ctx context.Context = r.Context()
 						device, rerr := m.registry.Get(serial)
@@ -285,7 +290,7 @@ func (m *Manager) handleWS(w http.ResponseWriter, r *http.Request, serial string
 							_ = m.recorder.RecordClick(ctx, serial, driver, startX, startY)
 						}
 					}()
-					
+
 					s.gestureMu.Lock()
 				}
 				s.gestureMu.Unlock()
@@ -448,7 +453,7 @@ func (m *Manager) handleWS(w http.ResponseWriter, r *http.Request, serial string
 							}
 						}
 						// On modern iOS, entering the App Switcher requires swiping up and holding/pausing before releasing
-						if serr := wdaClient.SwipeAndHold(ctx, lw/2.0, lh - 5.0, lw/2.0, lh*0.5, 0.4, 1000); serr != nil {
+						if serr := wdaClient.SwipeAndHold(ctx, lw/2.0, lh-5.0, lw/2.0, lh*0.5, 0.4, 1000); serr != nil {
 							slog.Warn("stream: ios app-switcher swipe failed", "serial", serial, "err", serr)
 						}
 					case 67: // Backspace

@@ -1,3 +1,8 @@
+// Package coordinator_server implements coordinator HTTP, WebSockets, and administrative APIs.
+//
+// File: admin_handlers.go
+// This file contains implementation and helper structures for coordinator HTTP, WebSockets, and administrative APIs.
+
 package coordinator_server
 
 import (
@@ -12,6 +17,7 @@ import (
 	"protean-provider/internal/domain"
 )
 
+// checkAdmin performs the check admin operation.
 func (s *Server) checkAdmin(w http.ResponseWriter, r *http.Request) bool {
 	userInfo, ok := auth.FromContext(r.Context())
 	if !ok || userInfo.Role != string(domain.RoleAdmin) {
@@ -21,6 +27,7 @@ func (s *Server) checkAdmin(w http.ResponseWriter, r *http.Request) bool {
 	return true
 }
 
+// handleAdminUsers handles the admin users request/event.
 func (s *Server) handleAdminUsers(w http.ResponseWriter, r *http.Request) {
 	if !s.checkAdmin(w, r) {
 		return
@@ -55,6 +62,7 @@ func (s *Server) handleAdminUsers(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 }
 
+// handleAdminGroups handles the admin groups request/event.
 func (s *Server) handleAdminGroups(w http.ResponseWriter, r *http.Request) {
 	if !s.checkAdmin(w, r) {
 		return
@@ -107,6 +115,7 @@ func (s *Server) handleAdminGroups(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 }
 
+// handleAdminGroupAction handles the admin group action request/event.
 func (s *Server) handleAdminGroupAction(w http.ResponseWriter, r *http.Request) {
 	if !s.checkAdmin(w, r) {
 		return

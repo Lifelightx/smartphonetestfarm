@@ -1,3 +1,8 @@
+// Package locator implements test script execution, scheduling, compiling, and locators (locator).
+//
+// File: locator.go
+// This file contains implementation and helper structures for test script execution, scheduling, compiling, and locators (locator).
+
 package locator
 
 import (
@@ -15,9 +20,9 @@ func MatchScore(target *dsl.UIElement, candidate *dsl.UIElement, anchor *dsl.Anc
 
 	// 1. ResourceID Match (+100 or -50 mismatch)
 	if target.ResourceID != "" {
-		if candidate.ResourceID != "" && (target.ResourceID == candidate.ResourceID || 
-		   strings.HasSuffix(target.ResourceID, ":id/"+candidate.ResourceID) ||
-		   strings.HasSuffix(candidate.ResourceID, ":id/"+target.ResourceID)) {
+		if candidate.ResourceID != "" && (target.ResourceID == candidate.ResourceID ||
+			strings.HasSuffix(target.ResourceID, ":id/"+candidate.ResourceID) ||
+			strings.HasSuffix(candidate.ResourceID, ":id/"+target.ResourceID)) {
 			score += 100
 		} else {
 			score -= 50
@@ -49,9 +54,9 @@ func MatchScore(target *dsl.UIElement, candidate *dsl.UIElement, anchor *dsl.Anc
 
 	// 5. Same Bounds Match (+30)
 	if target.Bounds.Left == candidate.Bounds.Left &&
-	   target.Bounds.Top == candidate.Bounds.Top &&
-	   target.Bounds.Right == candidate.Bounds.Right &&
-	   target.Bounds.Bottom == candidate.Bounds.Bottom {
+		target.Bounds.Top == candidate.Bounds.Top &&
+		target.Bounds.Right == candidate.Bounds.Right &&
+		target.Bounds.Bottom == candidate.Bounds.Bottom {
 		score += 30
 	}
 
@@ -89,8 +94,8 @@ func MatchScore(target *dsl.UIElement, candidate *dsl.UIElement, anchor *dsl.Anc
 		}
 		if anchor.ParentID != "" && candidate.Parent != nil {
 			if candidate.Parent.ResourceID == anchor.ParentID ||
-			   strings.HasSuffix(candidate.Parent.ResourceID, ":id/"+anchor.ParentID) ||
-			   strings.HasSuffix(anchor.ParentID, ":id/"+candidate.Parent.ResourceID) {
+				strings.HasSuffix(candidate.Parent.ResourceID, ":id/"+anchor.ParentID) ||
+				strings.HasSuffix(anchor.ParentID, ":id/"+candidate.Parent.ResourceID) {
 				score += 40
 			}
 		}
@@ -153,6 +158,7 @@ func ResolveElement(liveTree *dsl.UIElement, target *dsl.UIElement, anchor *dsl.
 	return bestMatch.node, bestMatch.score, nil
 }
 
+// abs performs the abs operation.
 func abs(x int) int {
 	if x < 0 {
 		return -x

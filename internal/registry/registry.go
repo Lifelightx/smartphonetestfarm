@@ -1,3 +1,8 @@
+// Package registry implements device and provider registries.
+//
+// File: registry.go
+// This file contains implementation and helper structures for device and provider registries.
+
 package registry
 
 import (

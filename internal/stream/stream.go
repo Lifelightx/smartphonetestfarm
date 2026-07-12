@@ -1,3 +1,8 @@
+// Package stream implements video streaming handlers, WS relays, and H264/FMP4 processing.
+//
+// File: stream.go
+// This file contains implementation and helper structures for video streaming handlers, WS relays, and H264/FMP4 processing.
+
 package stream
 
 import (
@@ -98,6 +103,7 @@ type streamState struct {
 	logicalHeight float64
 }
 
+// addClientAndGetCache performs the add client and get cache operation.
 func (s *streamState) addClientAndGetCache(ch chan<- []byte) [][]byte {
 	s.clientsMu.Lock()
 	defer s.clientsMu.Unlock()
@@ -111,12 +117,14 @@ func (s *streamState) addClientAndGetCache(ch chan<- []byte) [][]byte {
 	return cachedGOP
 }
 
+// removeClient removes the client.
 func (s *streamState) removeClient(ch chan<- []byte) {
 	s.clientsMu.Lock()
 	delete(s.clients, ch)
 	s.clientsMu.Unlock()
 }
 
+// broadcast performs the broadcast operation.
 func (s *streamState) broadcast(chunk []byte) {
 	s.clientsMu.RLock()
 	defer s.clientsMu.RUnlock()
@@ -489,7 +497,6 @@ func (m *Manager) IsCapturing(serial string) bool {
 	return ok
 }
 
-
 // scaleAndCompressJPEG decodes a JPEG, proportionally scales it so the longest
 // dimension is at most maxPx, then re-encodes at the given quality (0-100).
 // Returns the original bytes unchanged if any step fails.
@@ -540,6 +547,7 @@ func scaleAndCompressJPEG(data []byte, maxPx int, quality int) []byte {
 	return buf.Bytes()
 }
 
+// startIOSCaptureLocked starts the ioscapture locked.
 func (m *Manager) startIOSCaptureLocked(ctx context.Context, serial string, port int) error {
 	sCtx, cancel := context.WithCancel(context.Background())
 	s := &streamState{
@@ -745,4 +753,3 @@ func (m *Manager) startIOSCaptureLocked(ctx context.Context, serial string, port
 	slog.Info("stream: iOS capture started (MJPEG via WDA)", "serial", serial, "port", port)
 	return nil
 }
-

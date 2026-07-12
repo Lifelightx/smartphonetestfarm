@@ -1,3 +1,8 @@
+// Package auth implements authentication, user sessions, JWT handling, and middleware.
+//
+// File: jwt.go
+// This file contains implementation and helper structures for authentication, user sessions, JWT handling, and middleware.
+
 package auth
 
 import (
@@ -45,6 +50,7 @@ type JWKS struct {
 	Keys []JWK `json:"keys"`
 }
 
+// NewJWTManager initializes a new jwtmanager.
 func NewJWTManager(secret string, issuer string, oidcJWKSURL string) *JWTManager {
 	return &JWTManager{
 		secret:      []byte(secret),
@@ -119,6 +125,7 @@ func (m *JWTManager) VerifyToken(tokenStr string) (*Claims, error) {
 	return claims, nil
 }
 
+// getOIDCPublicKey retrieves the oidcpublic key.
 func (m *JWTManager) getOIDCPublicKey(kid string) (*rsa.PublicKey, error) {
 	m.mu.RLock()
 	key, exists := m.jwkCache[kid]
@@ -155,6 +162,7 @@ func (m *JWTManager) getOIDCPublicKey(kid string) (*rsa.PublicKey, error) {
 	return key, nil
 }
 
+// fetchJWKS performs the fetch jwks operation.
 func (m *JWTManager) fetchJWKS() error {
 	client := &http.Client{Timeout: 5 * time.Second}
 	resp, err := client.Get(m.oidcJWKSURL)

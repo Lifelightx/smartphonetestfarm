@@ -1,3 +1,8 @@
+// Package adb implements Android Debug Bridge (ADB) client integration and device tracking.
+//
+// File: client.go
+// This file contains implementation and helper structures for Android Debug Bridge (ADB) client integration and device tracking.
+
 package adb
 
 import (

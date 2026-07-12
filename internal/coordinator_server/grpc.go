@@ -1,3 +1,8 @@
+// Package coordinator_server implements coordinator HTTP, WebSockets, and administrative APIs.
+//
+// File: grpc.go
+// This file contains implementation and helper structures for coordinator HTTP, WebSockets, and administrative APIs.
+
 package coordinator_server
 
 import (
@@ -37,6 +42,7 @@ func (s *Server) RegisterProvider(ctx context.Context, req *pb.RegisterProviderR
 	return &pb.RegisterProviderResponse{Accepted: true, Message: "Registered successfully"}, nil
 }
 
+// RegisterDevice registers the device.
 func (s *Server) RegisterDevice(ctx context.Context, req *pb.RegisterDeviceRequest) (*pb.RegisterDeviceResponse, error) {
 	slog.Info("coordinator: registering device", "serial", req.Serial, "provider", req.ProviderId)
 
@@ -75,6 +81,7 @@ func (s *Server) RegisterDevice(ctx context.Context, req *pb.RegisterDeviceReque
 	return &pb.RegisterDeviceResponse{Accepted: true, Message: "Device registered"}, nil
 }
 
+// ReleaseDevice performs the release device operation.
 func (s *Server) ReleaseDevice(ctx context.Context, req *pb.ReleaseDeviceRequest) (*pb.ReleaseDeviceResponse, error) {
 	slog.Info("coordinator: device disconnected/released by provider", "serial", req.Serial, "provider", req.ProviderId)
 
@@ -89,6 +96,7 @@ func (s *Server) ReleaseDevice(ctx context.Context, req *pb.ReleaseDeviceRequest
 	return &pb.ReleaseDeviceResponse{Ok: true}, nil
 }
 
+// UpdateDeviceState updates the device state.
 func (s *Server) UpdateDeviceState(ctx context.Context, req *pb.UpdateDeviceStateRequest) (*pb.UpdateDeviceStateResponse, error) {
 	err := s.db.UpdateDeviceState(
 		req.Serial,
@@ -108,6 +116,7 @@ func (s *Server) UpdateDeviceState(ctx context.Context, req *pb.UpdateDeviceStat
 	return &pb.UpdateDeviceStateResponse{Success: true}, nil
 }
 
+// Heartbeat performs the heartbeat operation.
 func (s *Server) Heartbeat(stream pb.CoordinatorService_HeartbeatServer) error {
 	// Read initial message to identify provider
 	firstPing, err := stream.Recv()
@@ -166,6 +175,7 @@ func (s *Server) Heartbeat(stream pb.CoordinatorService_HeartbeatServer) error {
 	}
 }
 
+// processPing performs the process ping operation.
 func (s *Server) processPing(ping *pb.HeartbeatPing) {
 	// Update device timestamps and ensure their status is correctly active/idle
 	for _, serial := range ping.DeviceSerials {
@@ -173,6 +183,7 @@ func (s *Server) processPing(ping *pb.HeartbeatPing) {
 	}
 }
 
+// getProviderClient retrieves the provider client.
 func (s *Server) getProviderClient(ip string, port int) (providerpb.ProviderServiceClient, *grpc.ClientConn, error) {
 	addr := fmt.Sprintf("%s:%d", ip, port)
 	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))

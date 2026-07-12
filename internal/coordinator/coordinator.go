@@ -325,6 +325,7 @@ func (c *Client) runHeartbeatOnce(ctx context.Context) error {
 	}
 }
 
+// sendPing performs the send ping operation.
 func (c *Client) sendPing(ctx context.Context) error {
 	c.hbMu.Lock()
 	stream := c.hbStream
@@ -351,6 +352,7 @@ func (c *Client) sendPing(ctx context.Context) error {
 	return nil
 }
 
+// handlePong handles the pong request/event.
 func (c *Client) handlePong(pong *pb.HeartbeatPong) {
 	switch cmd := pong.Command.(type) {
 	case *pb.HeartbeatPong_Reconnect:
@@ -389,6 +391,7 @@ func (c *Client) addSerial(serial string) {
 	c.serials = append(c.serials, serial)
 }
 
+// removeSerial removes the serial.
 func (c *Client) removeSerial(serial string) {
 	c.snapshotMu.Lock()
 	defer c.snapshotMu.Unlock()

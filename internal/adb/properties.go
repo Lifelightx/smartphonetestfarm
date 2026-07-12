@@ -1,3 +1,8 @@
+// Package adb implements Android Debug Bridge (ADB) client integration and device tracking.
+//
+// File: properties.go
+// This file contains implementation and helper structures for Android Debug Bridge (ADB) client integration and device tracking.
+
 package adb
 
 import (
@@ -74,6 +79,7 @@ func getprop(ctx context.Context, c Client, serial, key string) (string, error) 
 	return c.Shell(ctx, serial, "getprop "+key)
 }
 
+// fetchDeviceInfo performs the fetch device info operation.
 func fetchDeviceInfo(ctx context.Context, c Client, serial string) (domain.DeviceInfo, error) {
 	var info domain.DeviceInfo
 
@@ -172,6 +178,7 @@ func fetchDisplayInfo(ctx context.Context, c Client, serial string) (domain.Disp
 // Handles both "Physical size: WxH" and "Override size: WxH" lines.
 var wmSizeRe = regexp.MustCompile(`(?i)size:\s*(\d+)x(\d+)`)
 
+// parseWMSize performs the parse wmsize operation.
 func parseWMSize(out string) (width, height int32) {
 	m := wmSizeRe.FindStringSubmatch(out)
 	if len(m) < 3 {
@@ -184,6 +191,7 @@ func parseWMSize(out string) (width, height int32) {
 
 var wmDensityRe = regexp.MustCompile(`(?i)density:\s*(\d+)`)
 
+// parseWMDensity performs the parse wmdensity operation.
 func parseWMDensity(out string) int32 {
 	m := wmDensityRe.FindStringSubmatch(out)
 	if len(m) < 2 {
@@ -195,6 +203,7 @@ func parseWMDensity(out string) int32 {
 
 var fpsRe = regexp.MustCompile(`(\d+(?:\.\d+)?)\s*fps`)
 
+// parseFPS performs the parse fps operation.
 func parseFPS(out string) int32 {
 	m := fpsRe.FindStringSubmatch(strings.ToLower(out))
 	if len(m) < 2 {
@@ -215,6 +224,7 @@ func fetchBatteryInfo(ctx context.Context, c Client, serial string) (domain.Batt
 	return parseBattery(out), nil
 }
 
+// parseBattery performs the parse battery operation.
 func parseBattery(out string) domain.BatteryInfo {
 	var b domain.BatteryInfo
 	for _, line := range strings.Split(out, "\n") {
@@ -233,6 +243,7 @@ func parseBattery(out string) domain.BatteryInfo {
 	return b
 }
 
+// healthString performs the health string operation.
 func healthString(code string) string {
 	switch code {
 	case "2":
@@ -280,6 +291,7 @@ func fetchNetworkInfo(ctx context.Context, c Client, serial string) (domain.Netw
 
 var ssidRe = regexp.MustCompile(`SSID:\s*"([^"]*)"`)
 
+// parseSSID performs the parse ssid operation.
 func parseSSID(out string) string {
 	m := ssidRe.FindStringSubmatch(out)
 	if len(m) < 2 {
@@ -290,6 +302,7 @@ func parseSSID(out string) string {
 
 var ipv4Re = regexp.MustCompile(`inet\s+(\d+\.\d+\.\d+\.\d+)/`)
 
+// parseIP performs the parse IP operation.
 func parseIP(out string) string {
 	m := ipv4Re.FindStringSubmatch(out)
 	if len(m) < 2 {

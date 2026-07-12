@@ -1,3 +1,8 @@
+// Package platform implements cross-platform device managers and factory interfaces.
+//
+// File: manager.go
+// This file contains implementation and helper structures for cross-platform device managers and factory interfaces.
+
 package platform
 
 import (

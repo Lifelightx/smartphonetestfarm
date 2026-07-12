@@ -1,3 +1,8 @@
+// Package auth implements authentication, user sessions, JWT handling, and middleware.
+//
+// File: handlers.go
+// This file contains implementation and helper structures for authentication, user sessions, JWT handling, and middleware.
+
 package auth
 
 import (
@@ -8,12 +13,14 @@ import (
 	"protean-provider/internal/domain"
 )
 
+// RegisterHandlers registers the handlers.
 func (s *AuthService) RegisterHandlers(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/auth/login", s.handleLogin)
 	mux.HandleFunc("/api/v1/auth/register", s.handleRegister)
 	mux.HandleFunc("/api/v1/auth/keys", s.handleKeys)
 }
 
+// handleLogin handles the login request/event.
 func (s *AuthService) handleLogin(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -41,6 +48,7 @@ func (s *AuthService) handleLogin(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleRegister handles the register request/event.
 func (s *AuthService) handleRegister(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -104,6 +112,7 @@ func (s *AuthService) handleRegister(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleKeys handles the keys request/event.
 func (s *AuthService) handleKeys(w http.ResponseWriter, r *http.Request) {
 	userInfo, ok := FromContext(r.Context())
 	if !ok {

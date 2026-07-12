@@ -1,3 +1,8 @@
+// Package main implements coordinator orchestration and lifecycle management.
+//
+// File: main.go
+// This file contains implementation and helper structures for coordinator orchestration and lifecycle management.
+
 package main
 
 import (
@@ -12,6 +17,7 @@ import (
 	"protean-provider/internal/logger"
 )
 
+// main performs the main operation.
 func main() {
 	// Initialize default configuration
 	cfg := coordinator_server.LoadConfig()

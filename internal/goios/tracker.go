@@ -1,3 +1,8 @@
+// Package goios implements native iOS communication using the go-ios library.
+//
+// File: tracker.go
+// This file contains implementation and helper structures for native iOS communication using the go-ios library.
+
 package goios
 
 import (
@@ -167,6 +172,7 @@ func (t *Tracker) Watch(ctx context.Context, ch chan<- domain.DeviceEvent) error
 	}
 }
 
+// minDur performs the min dur operation.
 func minDur(a, b time.Duration) time.Duration {
 	if a < b {
 		return a

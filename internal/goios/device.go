@@ -1,3 +1,8 @@
+// Package goios implements native iOS communication using the go-ios library.
+//
+// File: device.go
+// This file contains implementation and helper structures for native iOS communication using the go-ios library.
+
 package goios
 
 import (
@@ -142,6 +147,7 @@ var productTypeRAMMap = map[string]int64{
 	"iPhone17,4": 8192,
 }
 
+// resolveRAM performs the resolve RAM operation.
 func resolveRAM(productType string) int64 {
 	if ram, ok := productTypeRAMMap[productType]; ok {
 		return ram
@@ -149,6 +155,7 @@ func resolveRAM(productType string) int64 {
 	return 0
 }
 
+// resolveModelName performs the resolve model name operation.
 func resolveModelName(productType string) string {
 	if name, ok := productTypeMap[productType]; ok {
 		return name
@@ -268,6 +275,7 @@ func (dm *DeviceManager) GetProperties(ctx context.Context, serial string) (*dom
 	return dev, nil
 }
 
+// getString retrieves the string.
 func getString(m map[string]interface{}, key string) string {
 	if m == nil {
 		return ""

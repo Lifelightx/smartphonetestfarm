@@ -1,3 +1,8 @@
+// Package goios implements native iOS communication using the go-ios library.
+//
+// File: parsers.go
+// This file contains implementation and helper structures for native iOS communication using the go-ios library.
+
 package goios
 
 import (

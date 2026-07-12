@@ -1,3 +1,8 @@
+// Package supervisor implements device worker supervisors, state tracking, and port management.
+//
+// File: port_allocator.go
+// This file contains implementation and helper structures for device worker supervisors, state tracking, and port management.
+
 package supervisor
 
 import (

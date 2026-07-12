@@ -1,3 +1,8 @@
+// Package stream implements video streaming handlers, WS relays, and H264/FMP4 processing.
+//
+// File: h264.go
+// This file contains implementation and helper structures for video streaming handlers, WS relays, and H264/FMP4 processing.
+
 package stream
 
 import "encoding/binary"
@@ -12,6 +17,7 @@ const (
 	nalAUD    byte = 9
 )
 
+// nalType performs the nal type operation.
 func nalType(b byte) byte { return b & 0x1F }
 
 // annexBSplit splits an Annex-B H.264 byte stream into individual raw NAL units
@@ -113,6 +119,7 @@ type bitReader struct {
 	bitPos  int
 }
 
+// readBit performs the read bit operation.
 func (r *bitReader) readBit() uint {
 	if r.bytePos >= len(r.data) {
 		return 0
@@ -126,6 +133,7 @@ func (r *bitReader) readBit() uint {
 	return uint(bit)
 }
 
+// readBits performs the read bits operation.
 func (r *bitReader) readBits(n int) uint {
 	var val uint
 	for i := 0; i < n; i++ {
@@ -134,6 +142,7 @@ func (r *bitReader) readBits(n int) uint {
 	return val
 }
 
+// readUE performs the read ue operation.
 func (r *bitReader) readUE() uint {
 	var zeroCount int
 	for r.readBit() == 0 {
@@ -146,6 +155,7 @@ func (r *bitReader) readUE() uint {
 	return (1 << zeroCount) - 1 + val
 }
 
+// readSE performs the read se operation.
 func (r *bitReader) readSE() int {
 	val := r.readUE()
 	if val%2 == 0 {
@@ -183,8 +193,8 @@ func parseSPS(sps []byte) (width, height uint16) {
 		if chromaFormatIdc == 3 {
 			r.readBit() // separate_colour_plane_flag
 		}
-		r.readUE() // bit_depth_luma_minus8
-		r.readUE() // bit_depth_chroma_minus8
+		r.readUE()  // bit_depth_luma_minus8
+		r.readUE()  // bit_depth_chroma_minus8
 		r.readBit() // qpprime_y_zero_transform_bypass_flag
 		seqScalingMatrixPresentFlag := r.readBit()
 		if seqScalingMatrixPresentFlag != 0 {
@@ -223,14 +233,14 @@ func parseSPS(sps []byte) (width, height uint16) {
 		r.readUE() // log2_max_pic_order_cnt_lsb_minus4
 	} else if picOrderCntType == 1 {
 		r.readBit() // delta_pic_order_always_zero_flag
-		r.readUE() // offset_for_non_ref_pic
-		r.readUE() // offset_for_top_to_bottom_field
+		r.readUE()  // offset_for_non_ref_pic
+		r.readUE()  // offset_for_top_to_bottom_field
 		numRefFramesInPicOrderCntCycle := r.readUE()
 		for i := uint(0); i < numRefFramesInPicOrderCntCycle; i++ {
 			r.readUE() // offset_for_ref_frame
 		}
 	}
-	r.readUE() // max_num_ref_frames
+	r.readUE()  // max_num_ref_frames
 	r.readBit() // gaps_in_frame_num_value_allowed_flag
 
 	picWidthInMbsMinus1 := r.readUE()

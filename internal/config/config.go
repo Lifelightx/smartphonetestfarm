@@ -1,3 +1,8 @@
+// Package config implements configuration loading and parsing.
+//
+// File: config.go
+// This file contains implementation and helper structures for configuration loading and parsing.
+
 package config
 
 import (

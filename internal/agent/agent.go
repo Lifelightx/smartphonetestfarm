@@ -45,14 +45,14 @@ var upgrader = websocket.Upgrader{
 
 // Agent manages the ADB bridge for a single claimed device.
 type Agent struct {
-	serial  string
-	port    int      // allocated TCP port (host side for websocket reverse proxy)
-	adb     adb.Client
-	device  *domain.Device
+	serial string
+	port   int // allocated TCP port (host side for websocket reverse proxy)
+	adb    adb.Client
+	device *domain.Device
 
-	mu       sync.RWMutex
-	stopped  bool
-	wsConn   *websocket.Conn // Active WebSocket connection from Android APK
+	mu      sync.RWMutex
+	stopped bool
+	wsConn  *websocket.Conn // Active WebSocket connection from Android APK
 
 	cancel context.CancelFunc
 	done   chan struct{}
@@ -135,6 +135,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	return nil
 }
 
+// handleWS handles the WS request/event.
 func (a *Agent) handleWS(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -265,7 +266,7 @@ func (a *Agent) handleIncomingEvent(data []byte) {
 			go func() {
 				// Wait 1.5 seconds to make sure Android is completely finished with installation internally
 				time.Sleep(1500 * time.Millisecond)
-				
+
 				// Launch using monkey command: adb shell monkey -p <package_name> -c android.intent.category.LAUNCHER 1
 				cmd := exec.Command("adb", "-s", a.serial, "shell", "monkey", "-p", pkg.PackageName, "-c", "android.intent.category.LAUNCHER", "1")
 				out, err := cmd.CombinedOutput()
@@ -277,7 +278,7 @@ func (a *Agent) handleIncomingEvent(data []byte) {
 			}()
 		}
 	}
-	
+
 	if updated {
 		a.device.LastSeen = time.Now()
 		deviceSnapshot := *a.device // Copy
@@ -398,7 +399,7 @@ func (a *Agent) SendCommand(ctx context.Context, command string, payload interfa
 	}
 
 	cmdID := uuid.New().String()
-	
+
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		return nil, fmt.Errorf("marshal payload: %w", err)

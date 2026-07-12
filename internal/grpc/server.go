@@ -1,3 +1,8 @@
+// Package grpc implements gRPC servers and service handlers for device control.
+//
+// File: server.go
+// This file contains implementation and helper structures for gRPC servers and service handlers for device control.
+
 package grpc
 
 import (
@@ -106,19 +111,19 @@ func (s *Server) ListDevices(ctx context.Context, req *provider.ListDevicesReque
 		port, _ := s.sup.PortOf(d.Serial)
 
 		protos[i] = &provider.DeviceProto{
-			Serial:          d.Serial,
-			Model:           d.Info.Model,
-			Manufacturer:    d.Info.Manufacturer,
-			AndroidVersion:  d.Info.AndroidVersion,
-			SdkVersion:      int32(d.Info.SDKVersion),
-			CpuAbi:          d.Info.CPUABI,
-			RamMb:           d.Info.RAMMB,
-			StorageMb:       d.Info.StorageMB,
-			Status:          state.String(),
-			Port:            int32(port),
-			BatteryLevel:    int32(d.State.Battery.Level),
-			IpAddress:       d.State.Network.IP,
-			ConnectedAt:     timestamppb.New(d.ConnectedAt),
+			Serial:         d.Serial,
+			Model:          d.Info.Model,
+			Manufacturer:   d.Info.Manufacturer,
+			AndroidVersion: d.Info.AndroidVersion,
+			SdkVersion:     int32(d.Info.SDKVersion),
+			CpuAbi:         d.Info.CPUABI,
+			RamMb:          d.Info.RAMMB,
+			StorageMb:      d.Info.StorageMB,
+			Status:         state.String(),
+			Port:           int32(port),
+			BatteryLevel:   int32(d.State.Battery.Level),
+			IpAddress:      d.State.Network.IP,
+			ConnectedAt:    timestamppb.New(d.ConnectedAt),
 		}
 	}
 
@@ -227,6 +232,7 @@ func (s *Server) ControlDevice(stream provider.ProviderService_ControlDeviceServ
 	}
 }
 
+// abs performs the abs operation.
 func abs(v int32) int32 {
 	if v < 0 {
 		return -v

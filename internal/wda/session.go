@@ -1,3 +1,8 @@
+// Package wda implements WebDriverAgent (WDA) client for iOS automation and interaction.
+//
+// File: session.go
+// This file contains implementation and helper structures for WebDriverAgent (WDA) client for iOS automation and interaction.
+
 package wda
 
 import (
@@ -26,7 +31,8 @@ func (c *Client) CreateSession(ctx context.Context) (string, error) {
 	defer c.mu.Unlock()
 	return c.createSessionLocked(ctx)
 }
-//ios fps setting
+
+// ios fps setting
 // createSessionLocked establishes a session. Caller must hold c.mu.Lock().
 func (c *Client) createSessionLocked(ctx context.Context) (string, error) {
 	body := map[string]interface{}{
@@ -128,4 +134,3 @@ func (c *Client) GetWindowSize(ctx context.Context) (float64, float64, error) {
 	}
 	return resp.Value.Width, resp.Value.Height, nil
 }
-

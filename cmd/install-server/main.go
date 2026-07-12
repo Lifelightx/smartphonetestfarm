@@ -18,6 +18,7 @@ import (
 	"protean-provider/internal/utils"
 )
 
+// main performs the main operation.
 func main() {
 	if len(os.Args) != 2 {
 		fmt.Fprintf(os.Stderr, "Usage: install-server <path-to-scrcpy-server>\n\n")

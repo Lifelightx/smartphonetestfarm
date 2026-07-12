@@ -1,3 +1,8 @@
+// Package supervisor implements device worker supervisors, state tracking, and port management.
+//
+// File: state.go
+// This file contains implementation and helper structures for device worker supervisors, state tracking, and port management.
+
 package supervisor
 
 import "protean-provider/internal/domain"
@@ -27,6 +32,7 @@ const (
 	StateReleasing
 )
 
+// String performs the string operation.
 func (s DeviceState) String() string {
 	switch s {
 	case StateIdle:

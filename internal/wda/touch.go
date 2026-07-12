@@ -1,3 +1,8 @@
+// Package wda implements WebDriverAgent (WDA) client for iOS automation and interaction.
+//
+// File: touch.go
+// This file contains implementation and helper structures for WebDriverAgent (WDA) client for iOS automation and interaction.
+
 package wda
 
 import (
@@ -108,4 +113,3 @@ func (c *Client) SwipeAndHold(ctx context.Context, x1, y1, x2, y2 float64, durat
 	}
 	return nil
 }
-

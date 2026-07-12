@@ -1,3 +1,8 @@
+// Package automation implements test script execution, scheduling, compiling, and locators.
+//
+// File: ios_driver.go
+// This file contains implementation and helper structures for test script execution, scheduling, compiling, and locators.
+
 package automation
 
 import (

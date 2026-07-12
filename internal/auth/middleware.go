@@ -1,3 +1,8 @@
+// Package auth implements authentication, user sessions, JWT handling, and middleware.
+//
+// File: middleware.go
+// This file contains implementation and helper structures for authentication, user sessions, JWT handling, and middleware.
+
 package auth
 
 import (
@@ -92,7 +97,7 @@ func (s *AuthService) AuthMiddleware(bypassInDev bool) func(http.Handler) http.H
 				}
 
 				if path == "/api/v1/auth/register" {
-					// Allow unauthenticated requests to reach register handler, 
+					// Allow unauthenticated requests to reach register handler,
 					// which enforces its own check on whether DB is empty.
 					next.ServeHTTP(w, r)
 					return

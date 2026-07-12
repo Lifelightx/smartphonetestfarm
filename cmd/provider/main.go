@@ -1,3 +1,8 @@
+// Package main implements main entry points and command execution (provider).
+//
+// File: main.go
+// This file contains implementation and helper structures for main entry points and command execution (provider).
+
 package main
 
 import (
@@ -22,6 +27,7 @@ import (
 // Version is injected at build time via -ldflags "-X main.Version=v1.0.0".
 var Version = "dev"
 
+// main performs the main operation.
 func main() {
 	// ── CLI flags ─────────────────────────────────────────────────────────────
 	configPath := flag.String("config", "config/provider.yaml", "Path to provider config file")

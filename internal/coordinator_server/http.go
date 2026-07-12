@@ -1,3 +1,8 @@
+// Package coordinator_server implements coordinator HTTP, WebSockets, and administrative APIs.
+//
+// File: http.go
+// This file contains implementation and helper structures for coordinator HTTP, WebSockets, and administrative APIs.
+
 package coordinator_server
 
 import (
@@ -41,6 +46,7 @@ type DeviceJSON struct {
 	InstalledBrowsers json.RawMessage `json:"installed_browsers,omitempty"`
 }
 
+// getDevice retrieves the device.
 func (s *Server) getDevice(serial string) (*DeviceJSON, error) {
 	row := s.db.RawDB().QueryRow(`
 		SELECT serial, provider_ip, model, manufacturer, platform, os_version, sdk, abi, ram_mb, storage_mb,
@@ -67,6 +73,7 @@ func (s *Server) getDevice(serial string) (*DeviceJSON, error) {
 	return &d, nil
 }
 
+// getDevicesList retrieves the devices list.
 func (s *Server) getDevicesList(userID string, isAdmin bool) ([]DeviceJSON, error) {
 	var rows *sql.Rows
 	var err error
@@ -132,6 +139,7 @@ func (s *Server) getDevicesList(userID string, isAdmin bool) ([]DeviceJSON, erro
 	return list, nil
 }
 
+// handleListDevices handles the list devices request/event.
 func (s *Server) handleListDevices(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -158,6 +166,7 @@ func (s *Server) handleListDevices(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(list)
 }
 
+// broadcastFullList performs the broadcast full list operation.
 func (s *Server) broadcastFullList() {
 	s.wsManager.mu.Lock()
 	defer s.wsManager.mu.Unlock()
@@ -184,6 +193,7 @@ func (s *Server) broadcastFullList() {
 	}
 }
 
+// handleDeviceAction handles the device action request/event.
 func (s *Server) handleDeviceAction(w http.ResponseWriter, r *http.Request) {
 	relPath := strings.TrimPrefix(r.URL.Path, "/api/v1/devices/")
 	parts := strings.Split(relPath, "/")
@@ -401,10 +411,12 @@ func (s *Server) handleDeviceAction(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// uuidString performs the UUID string operation.
 func uuidString() string {
 	return uuid.New().String()
 }
 
+// handleWS handles the WS request/event.
 func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -440,6 +452,7 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// handleScripts handles the scripts request/event.
 func (s *Server) handleScripts(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		list, err := s.db.ListScripts()
@@ -499,6 +512,7 @@ func (s *Server) handleScripts(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 }
 
+// handleScriptByID handles the script by ID request/event.
 func (s *Server) handleScriptByID(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimPrefix(r.URL.Path, "/api/v1/automation/scripts/")
 	if id == "" || strings.Contains(id, "/") {
@@ -541,6 +555,7 @@ func (s *Server) handleScriptByID(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 }
 
+// handleRunScript handles the run script request/event.
 func (s *Server) handleRunScript(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -676,6 +691,7 @@ func (s *Server) handleRunScript(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleReports handles the reports request/event.
 func (s *Server) handleReports(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -692,6 +708,7 @@ func (s *Server) handleReports(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(list)
 }
 
+// handleReportByID handles the report by ID request/event.
 func (s *Server) handleReportByID(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimPrefix(r.URL.Path, "/api/v1/automation/reports/")
 	if id == "" || strings.Contains(id, "/") {

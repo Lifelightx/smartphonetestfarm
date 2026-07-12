@@ -1,3 +1,8 @@
+// Package locator implements test script execution, scheduling, compiling, and locators (locator).
+//
+// File: locator_xpath.go
+// This file contains implementation and helper structures for test script execution, scheduling, compiling, and locators (locator).
+
 package locator
 
 import (
@@ -116,12 +121,14 @@ func EvaluateXPath(hierarchy *dsl.UIHierarchy, xpath string) *dsl.XMLNode {
 	return nil
 }
 
+// collectAll performs the collect all operation.
 func collectAll(h *dsl.UIHierarchy, pred func(*dsl.XMLNode) bool, result *[]*dsl.XMLNode) {
 	for i := range h.Nodes {
 		collectAllInNode(&h.Nodes[i], pred, result)
 	}
 }
 
+// collectAllInNode performs the collect all in node operation.
 func collectAllInNode(n *dsl.XMLNode, pred func(*dsl.XMLNode) bool, result *[]*dsl.XMLNode) {
 	if pred(n) {
 		*result = append(*result, n)

@@ -1,3 +1,8 @@
+// Package locator implements test script execution, scheduling, compiling, and locators (locator).
+//
+// File: locator_legacy.go
+// This file contains implementation and helper structures for test script execution, scheduling, compiling, and locators (locator).
+
 package locator
 
 import (
@@ -38,6 +43,7 @@ func FindElement(xmlData string, query dsl.ElementQuery, width, height int32) (f
 	return centerX / float64(width), centerY / float64(height), nil
 }
 
+// SearchNode performs the search node operation.
 func SearchNode(node *dsl.XMLNode, query dsl.ElementQuery) *dsl.XMLNode {
 	if matchesQuery(node, query) {
 		return node
@@ -50,6 +56,7 @@ func SearchNode(node *dsl.XMLNode, query dsl.ElementQuery) *dsl.XMLNode {
 	return nil
 }
 
+// matchesQuery performs the matches query operation.
 func matchesQuery(node *dsl.XMLNode, query dsl.ElementQuery) bool {
 	if query.ResourceID != "" {
 		return node.ResourceID == query.ResourceID || strings.HasSuffix(node.ResourceID, ":id/"+query.ResourceID)
@@ -66,6 +73,7 @@ func matchesQuery(node *dsl.XMLNode, query dsl.ElementQuery) bool {
 	return false
 }
 
+// FindFocusedOrEditTextNode performs the find focused or edit text node operation.
 func FindFocusedOrEditTextNode(xmlData string) (*dsl.XMLNode, error) {
 	var hierarchy dsl.UIHierarchy
 	if err := xml.Unmarshal([]byte(xmlData), &hierarchy); err != nil {
@@ -84,6 +92,7 @@ func FindFocusedOrEditTextNode(xmlData string) (*dsl.XMLNode, error) {
 	return nil, fmt.Errorf("no focused or EditText node found in UI hierarchy")
 }
 
+// findNodeByFocus performs the find node by focus operation.
 func findNodeByFocus(node *dsl.XMLNode) *dsl.XMLNode {
 	if node.Focused == "true" {
 		return node
@@ -96,6 +105,7 @@ func findNodeByFocus(node *dsl.XMLNode) *dsl.XMLNode {
 	return nil
 }
 
+// findNodeByClass performs the find node by class operation.
 func findNodeByClass(node *dsl.XMLNode, className string) *dsl.XMLNode {
 	if node.Class == className {
 		return node

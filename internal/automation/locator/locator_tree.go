@@ -1,3 +1,8 @@
+// Package locator implements test script execution, scheduling, compiling, and locators (locator).
+//
+// File: locator_tree.go
+// This file contains implementation and helper structures for test script execution, scheduling, compiling, and locators (locator).
+
 package locator
 
 import (
@@ -49,6 +54,7 @@ func ParseXMLTree(xmlData string) (*dsl.UIElement, error) {
 	return virtualRoot, nil
 }
 
+// convertXMLToUIElement performs the convert xmlto uielement operation.
 func convertXMLToUIElement(node *dsl.XMLNode, parent *dsl.UIElement) *dsl.UIElement {
 	left, top, right, bottom, _ := ParseBounds(node.Bounds)
 	el := &dsl.UIElement{
@@ -81,6 +87,7 @@ func convertXMLToUIElement(node *dsl.XMLNode, parent *dsl.UIElement) *dsl.UIElem
 	return el
 }
 
+// ParseBounds performs the parse bounds operation.
 func ParseBounds(boundsStr string) (left, top, right, bottom int, err error) {
 	_, err = fmt.Sscanf(boundsStr, "[%d,%d][%d,%d]", &left, &top, &right, &bottom)
 	return

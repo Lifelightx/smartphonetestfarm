@@ -1,3 +1,8 @@
+// Package locator implements test script execution, scheduling, compiling, and locators (locator).
+//
+// File: locator_generation.go
+// This file contains implementation and helper structures for test script execution, scheduling, compiling, and locators (locator).
+
 package locator
 
 import (
@@ -28,6 +33,7 @@ func ExtractAnchor(xmlData string, targetNode *dsl.XMLNode) *dsl.AnchorContext {
 	return anchor
 }
 
+// findParentAndSiblings performs the find parent and siblings operation.
 func findParentAndSiblings(h *dsl.UIHierarchy, target *dsl.XMLNode, anchor *dsl.AnchorContext) bool {
 	for i := range h.Nodes {
 		if findParentAndSiblingsInNode(&h.Nodes[i], target, anchor) {
@@ -37,6 +43,7 @@ func findParentAndSiblings(h *dsl.UIHierarchy, target *dsl.XMLNode, anchor *dsl.
 	return false
 }
 
+// findParentAndSiblingsInNode performs the find parent and siblings in node operation.
 func findParentAndSiblingsInNode(parent *dsl.XMLNode, target *dsl.XMLNode, anchor *dsl.AnchorContext) bool {
 	for i := range parent.Nodes {
 		child := &parent.Nodes[i]
@@ -67,6 +74,7 @@ func findParentAndSiblingsInNode(parent *dsl.XMLNode, target *dsl.XMLNode, ancho
 	return false
 }
 
+// findFirstTextNode performs the find first text node operation.
 func findFirstTextNode(node *dsl.XMLNode) *dsl.XMLNode {
 	if node.Text != "" {
 		return node
@@ -179,6 +187,7 @@ func GenerateLocators(xmlData string, targetNode *dsl.XMLNode, x, y float64) []d
 	return locators
 }
 
+// countMatching performs the count matching operation.
 func countMatching(h *dsl.UIHierarchy, pred func(*dsl.XMLNode) bool) int {
 	count := 0
 	var walk func(n *dsl.XMLNode)

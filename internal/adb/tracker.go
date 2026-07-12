@@ -1,3 +1,8 @@
+// Package adb implements Android Debug Bridge (ADB) client integration and device tracking.
+//
+// File: tracker.go
+// This file contains implementation and helper structures for Android Debug Bridge (ADB) client integration and device tracking.
+
 package adb
 
 import (
@@ -359,6 +364,7 @@ func sleep(ctx context.Context, d time.Duration) bool {
 	}
 }
 
+// minDur performs the min dur operation.
 func minDur(a, b time.Duration) time.Duration {
 	if a < b {
 		return a

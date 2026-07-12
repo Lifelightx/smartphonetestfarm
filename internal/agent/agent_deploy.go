@@ -1,3 +1,8 @@
+// Package agent implements device agent deployment, setup, and control.
+//
+// File: agent_deploy.go
+// This file contains implementation and helper structures for device agent deployment, setup, and control.
+
 package agent
 
 import (

@@ -1,3 +1,8 @@
+// Package automation implements test script execution, scheduling, compiling, and locators.
+//
+// File: runner_helpers.go
+// This file contains implementation and helper structures for test script execution, scheduling, compiling, and locators.
+
 package automation
 
 import (
@@ -9,6 +14,7 @@ import (
 	"time"
 )
 
+// tapUIElement performs the tap uielement operation.
 func (r *Runner) tapUIElement(ctx context.Context, node *UIElement, targetX, targetY *float64) error {
 	width, height, err := r.driver.ScreenSize(ctx)
 	if err != nil {
@@ -28,6 +34,7 @@ func (r *Runner) tapUIElement(ctx context.Context, node *UIElement, targetX, tar
 	return r.driver.Tap(ctx, normX, normY)
 }
 
+// shouldTapOriginalCoords performs the should tap original coords operation.
 func (r *Runner) shouldTapOriginalCoords(node *UIElement, targetX, targetY *float64, screenWidth, screenHeight int32) bool {
 	if targetX == nil || targetY == nil {
 		return false
@@ -56,6 +63,7 @@ func (r *Runner) shouldTapOriginalCoords(node *UIElement, targetX, targetY *floa
 	return false
 }
 
+// findByLocatorWithWait performs the find by locator with wait operation.
 func (r *Runner) findByLocatorWithWait(ctx context.Context, loc Locator, anchor *AnchorContext, timeoutMs int) (*XMLNode, error) {
 	if timeoutMs <= 0 {
 		timeoutMs = 5000
@@ -88,6 +96,7 @@ func (r *Runner) findByLocatorWithWait(ctx context.Context, loc Locator, anchor 
 	}
 }
 
+// tapNode performs the tap node operation.
 func (r *Runner) tapNode(ctx context.Context, node *XMLNode) error {
 	width, height, err := r.driver.ScreenSize(ctx)
 	if err != nil {
@@ -107,6 +116,7 @@ func (r *Runner) tapNode(ctx context.Context, node *XMLNode) error {
 	return r.driver.Tap(ctx, normX, normY)
 }
 
+// waitForElement performs the wait for element operation.
 func (r *Runner) waitForElement(ctx context.Context, query ElementQuery, condition string, timeoutMs int) (*XMLNode, error) {
 	if timeoutMs <= 0 {
 		timeoutMs = 5000
@@ -165,6 +175,7 @@ func (r *Runner) waitForElement(ctx context.Context, query ElementQuery, conditi
 	}
 }
 
+// waitForUIStabilization performs the wait for uistabilization operation.
 func (r *Runner) waitForUIStabilization(ctx context.Context, timeout time.Duration) error {
 	limit := time.Now().Add(timeout)
 	lastXML := ""
@@ -196,6 +207,7 @@ func (r *Runner) waitForUIStabilization(ctx context.Context, timeout time.Durati
 	return nil
 }
 
+// autoScrollToFind performs the auto scroll to find operation.
 func (r *Runner) autoScrollToFind(ctx context.Context, scrollCount int) (string, error) {
 	xmlData, err := r.driver.DumpUI(ctx)
 	if err != nil {
@@ -249,6 +261,7 @@ func (r *Runner) autoScrollToFind(ctx context.Context, scrollCount int) (string,
 	return r.driver.DumpUI(ctx)
 }
 
+// verifyPackageActive performs the verify package active operation.
 func (r *Runner) verifyPackageActive(ctx context.Context, expectedPackage string, timeoutMs int) error {
 	limit := time.Now().Add(time.Duration(timeoutMs) * time.Millisecond)
 	for time.Now().Before(limit) {

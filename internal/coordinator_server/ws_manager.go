@@ -1,3 +1,8 @@
+// Package coordinator_server implements coordinator HTTP, WebSockets, and administrative APIs.
+//
+// File: ws_manager.go
+// This file contains implementation and helper structures for coordinator HTTP, WebSockets, and administrative APIs.
+
 package coordinator_server
 
 import (
@@ -39,12 +44,14 @@ func NewWSManager() *WSManager {
 	}
 }
 
+// AddClient performs the add client operation.
 func (m *WSManager) AddClient(conn *websocket.Conn, userID string, isAdmin bool) {
 	m.mu.Lock()
 	m.clients[conn] = ClientInfo{UserID: userID, IsAdmin: isAdmin}
 	m.mu.Unlock()
 }
 
+// RemoveClient removes the client.
 func (m *WSManager) RemoveClient(conn *websocket.Conn) {
 	m.mu.Lock()
 	delete(m.clients, conn)

@@ -1,3 +1,8 @@
+// Package grpc implements gRPC servers and service handlers for device control.
+//
+// File: ios_control.go
+// This file contains implementation and helper structures for gRPC servers and service handlers for device control.
+
 package grpc
 
 import (
@@ -245,4 +250,3 @@ func (s *Server) handleIOSControl(ctx context.Context, req *provider.ControlRequ
 
 	return resp, nil
 }
-

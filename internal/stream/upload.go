@@ -1,3 +1,8 @@
+// Package stream implements video streaming handlers, WS relays, and H264/FMP4 processing.
+//
+// File: upload.go
+// This file contains implementation and helper structures for video streaming handlers, WS relays, and H264/FMP4 processing.
+
 package stream
 
 import (
@@ -18,6 +23,7 @@ type progressResponse struct {
 	Message string `json:"message,omitempty"`
 }
 
+// sendProgress performs the send progress operation.
 func sendProgress(w http.ResponseWriter, flusher http.Flusher, stage string, message string, success bool) {
 	resp := progressResponse{
 		Success: success,
@@ -82,14 +88,14 @@ func (m *Manager) handleUpload(w http.ResponseWriter, r *http.Request, serial st
 		sendProgress(w, flusher, "error", "failed to save uploaded file: "+err.Error(), false)
 		return
 	}
-	out.Close() // close early so adb can access it
+	out.Close()                   // close early so adb can access it
 	defer os.Remove(tempFilePath) // clean up after we're done
 
 	switch uploadType {
 	case "app":
 		sendProgress(w, flusher, "installing", "Installing APK on device...", true)
 		slog.Info("upload: installing app", "serial", serial, "file", header.Filename)
-		
+
 		// Run install command
 		cmd := exec.CommandContext(r.Context(), "adb", "-s", serial, "install", "-r", tempFilePath)
 		outBytes, err := cmd.CombinedOutput()
@@ -103,7 +109,7 @@ func (m *Manager) handleUpload(w http.ResponseWriter, r *http.Request, serial st
 		// Our Kotlin agent's PackageService captures this event and sends PACKAGE_INSTALLED
 		// to our websocket handler, which will automatically trigger the launch.
 		sendProgress(w, flusher, "opening", "Opening installed app...", true)
-		
+
 		// Wait a small moment to let the agent capture, send, and launch the event
 		select {
 		case <-time.After(1500 * time.Millisecond):
@@ -115,7 +121,7 @@ func (m *Manager) handleUpload(w http.ResponseWriter, r *http.Request, serial st
 	case "file":
 		sendProgress(w, flusher, "installing", "Pushing file to device...", true)
 		slog.Info("upload: pushing file to device", "serial", serial, "file", header.Filename)
-		
+
 		cmd := exec.CommandContext(r.Context(), "adb", "-s", serial, "push", tempFilePath, "/sdcard/Download/"+header.Filename)
 		outBytes, err := cmd.CombinedOutput()
 		if err != nil {
@@ -128,19 +134,19 @@ func (m *Manager) handleUpload(w http.ResponseWriter, r *http.Request, serial st
 	case "server":
 		sendProgress(w, flusher, "installing", "Saving file to provider server...", true)
 		slog.Info("upload: saved file to provider server", "serial", serial, "file", tempFilePath)
-		
+
 		uploadsDir := filepath.Join(os.TempDir(), "protean_uploads")
 		if err := os.MkdirAll(uploadsDir, 0755); err != nil {
 			sendProgress(w, flusher, "error", "Failed to create uploads directory on server", false)
 			return
 		}
-		
+
 		permPath := filepath.Join(uploadsDir, header.Filename)
 		if err := os.Rename(tempFilePath, permPath); err != nil {
 			sendProgress(w, flusher, "error", "Failed to move file to server destination", false)
 			return
 		}
-		
+
 		sendProgress(w, flusher, "done", "File saved on server: "+header.Filename, true)
 
 	default:

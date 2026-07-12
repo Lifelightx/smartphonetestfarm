@@ -1,3 +1,8 @@
+// Package grpc implements gRPC servers and service handlers for device control.
+//
+// File: android_control.go
+// This file contains implementation and helper structures for gRPC servers and service handlers for device control.
+
 package grpc
 
 import (
